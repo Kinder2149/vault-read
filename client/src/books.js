@@ -10,6 +10,13 @@
 import * as google from './sources/google.js';
 import * as ol from './sources/openlibrary.js';
 import * as bnf from './sources/bnf.js';
+/*
+ * `tomes.js` est un module PUR — aucun reseau, aucune base, aucune dependance.
+ * L'importer ici ne cree donc pas de cycle et ne fait pas entrer une source
+ * dans un fichier de presentation : c'est l'inverse, on emprunte un calcul.
+ * Il sert a designer, dans un groupe de doublons, la fiche qui fera la carte.
+ */
+import { scorePertinence } from './tomes.js';
 
 /** @typedef {import('./types.js').ResultatRecherche} ResultatRecherche */
 /** @typedef {import('./types.js').Identite} Identite */
@@ -95,6 +102,154 @@ function normaliser(texte, couperSousTitre) {
     .replace(/^-+|-+$/g, '');
 }
 
+// ---------------------------------------------------------------------------
+// FUSIONNER LES DOUBLONS DE RECHERCHE (retour d'usage 122, tranche 2)
+// ---------------------------------------------------------------------------
+
+/*
+ * « Je trouve un livre plutot connu qui apparait sans editeur et sans
+ * couverture, alors que le tome 1 est complet juste a cote. »
+ *
+ * Diagnostic : le meme livre revient plusieurs fois chez Google sous des
+ * fiches de qualite tres inegale — l'une porte l'editeur, l'autre la
+ * couverture, une troisieme n'a ni l'un ni l'autre. Rien ne les rapprochait.
+ * `suggestions()` regroupait deja par empreinte ; la recherche, non. La fiche
+ * pauvre s'affichait donc a la place de la bonne, qui etait dans la MEME
+ * liste, quinze lignes plus bas.
+ *
+ * On regroupe par empreinte d'oeuvre — la meme que partout ailleurs (§3.2), et
+ * c'est bien pour cela qu'elle n'a qu'un seul domicile. Le groupe rend UNE
+ * carte : la fiche la mieux classee, COMPLETEE par ce que les autres savent.
+ *
+ * Deux limites assumees, et connues :
+ *  - deux editions reellement differentes du meme texte n'en font plus qu'une
+ *    en recherche. C'est voulu : le choix d'edition a son ecran (§3.1), la
+ *    recherche sert a trouver l'OEUVRE ;
+ *  - une fiche sans auteur ne rejoint pas la fiche du meme titre qui en a un,
+ *    puisque l'auteur entre dans l'empreinte. Regrouper sur le seul titre
+ *    ferait fusionner « Les fourmis » de Werber avec neuf documentaires
+ *    jeunesse homonymes : on prefere une carte de trop a un livre efface.
+ */
+
+/*
+ * CLE DE REGROUPEMENT DE RECHERCHE — a ne pas confondre avec l'empreinte
+ * d'oeuvre (correction 3).
+ *
+ * `empreinteOeuvre` est l'IDENTITE d'une oeuvre en base (§3.2) : elle est
+ * ecrite dans les tables, elle sert de cle etrangere, et la changer
+ * demanderait une migration. On n'y touche pas.
+ *
+ * Ce dont la recherche a besoin est plus lache : rapprocher deux FICHES qui
+ * decrivent le meme livre, le temps d'un affichage. Mesure du 2026-08-27 sur
+ * « germinal », trois pages : le meme roman se presentait sous « emile zola »
+ * (28 fiches), « Zola, Emile » (3 fiches) et « Эмиль Золя ». L'empreinte les
+ * separe — a juste titre pour la base, a tort pour l'ecran, qui affichait
+ * trois cartes du meme livre.
+ *
+ * On trie donc les mots du nom : « emile zola » et « zola emile » donnent la
+ * meme cle. Une translitteration (« Эмиль Золя ») reste a part : elle ne
+ * partage aucune lettre, et rien ne permet de la rattacher sans risque.
+ */
+function cleRegroupement(titre, auteurs) {
+  const premier = Array.isArray(auteurs) ? auteurs[0] : auteurs;
+  const nom = normaliser(premier, false).split('-').filter(Boolean).sort().join('-');
+  return `grp:${normaliser(titre, true)}|${nom}`;
+}
+
+/*
+ * Ce qui se complete d'une fiche a l'autre. `titre`, `sousTitre` et
+ * `cleSource` n'y sont PAS : ils font l'identite de la carte et viennent de la
+ * fiche retenue, sans quoi on afficherait le titre de l'une et l'annee de
+ * l'autre.
+ */
+const CHAMPS_A_COMPLETER = [
+  'couvertureUrl', 'resume', 'langue', 'isbn13', 'isbn10',
+  'nbPages', 'editeur', 'annee', 'datePublication',
+];
+
+function estVide(valeur) {
+  if (valeur === null || valeur === undefined || valeur === '') return true;
+  return Array.isArray(valeur) && valeur.length === 0;
+}
+
+/**
+ * Regroupe les doublons d'une liste de resultats.
+ *
+ * @param {ResultatRecherche[]} resultats
+ * @param {string} requete ce qui a ete tape — sert a choisir la fiche retenue
+ * @returns {ResultatRecherche[]} un resultat par oeuvre, dans l'ordre d'arrivee
+ *   de la premiere fiche du groupe. Chaque carte porte en plus `clesSource`,
+ *   la liste des cles fusionnees : un livre deja suivi doit rester marque meme
+ *   si c'est une AUTRE de ses fiches qui a ete retenue.
+ */
+export function fusionnerDoublons(resultats, requete = '') {
+  const groupes = new Map();
+
+  (resultats || []).forEach((r) => {
+    const auteur = Array.isArray(r.auteurs) ? r.auteurs[0] : r.auteurs;
+    // Sans titre NI auteur, l'empreinte ne distingue plus rien : cette fiche
+    // reste seule dans son groupe plutot que d'aspirer toutes les autres.
+    const cle = (r.titre && auteur)
+      ? cleRegroupement(r.titre, r.auteurs)
+      : `seul:${r.cleSource}`;
+    const groupe = groupes.get(cle);
+    if (groupe) groupe.push(r);
+    else groupes.set(cle, [r]);
+  });
+
+  return [...groupes.values()].map((groupe) => fondre(groupe, requete));
+}
+
+/*
+ * Toutes les cles d'une fiche — y compris celles qu'elle a deja absorbees.
+ * C'est ce qui rend la fusion IDEMPOTENTE : l'ecran refond la liste entiere a
+ * chaque page chargee, et refondre un resultat deja fondu ne doit pas lui
+ * faire oublier ce qu'il a avale au tour precedent.
+ */
+function clesDe(r) {
+  return Array.isArray(r.clesSource) && r.clesSource.length ? r.clesSource : [r.cleSource];
+}
+
+/* Une carte a partir d'un groupe de fiches du meme livre. */
+function fondre(groupe, requete) {
+  if (groupe.length === 1) return { ...groupe[0], clesSource: clesDe(groupe[0]) };
+
+  /*
+   * La fiche RETENUE est la mieux classee — le meme calcul que celui qui range
+   * l'ecran (tranche 1), pour que la carte affichee soit bien celle qui aurait
+   * gagne. A egalite, la premiere arrivee : l'ordre de Google reste une
+   * information.
+   */
+  let base = groupe[0];
+  let meilleur = scorePertinence(base, requete);
+  groupe.slice(1).forEach((r) => {
+    const note = scorePertinence(r, requete);
+    if (note > meilleur) { base = r; meilleur = note; }
+  });
+
+  const fondu = { ...base, clesSource: [...new Set(groupe.flatMap(clesDe))] };
+
+  // On ne REMPLACE jamais ce que la fiche retenue sait deja : on ne comble que
+  // ses trous, avec la premiere fiche du groupe qui a la reponse.
+  CHAMPS_A_COMPLETER.forEach((champ) => {
+    if (!estVide(fondu[champ])) return;
+    const donneur = groupe.find((r) => !estVide(r[champ]));
+    if (donneur) fondu[champ] = donneur[champ];
+  });
+
+  // `auteurs` et `categories` sont des listes : meme regle, comblement seul.
+  if (estVide(fondu.auteurs)) {
+    const donneur = groupe.find((r) => !estVide(r.auteurs));
+    if (donneur) fondu.auteurs = donneur.auteurs;
+  }
+  if (estVide(fondu.categories)) {
+    const donneur = groupe.find((r) => !estVide(r.categories));
+    if (donneur) fondu.categories = donneur.categories;
+  }
+
+  return fondu;
+}
+
 /**
  * Recherche. Cache mémoire 30 min sur les résultats uniquement : les fiches
  * n'en ont pas besoin, elles seront en base (§3.5).
@@ -102,11 +257,44 @@ function normaliser(texte, couperSousTitre) {
  * @param {'titre'|'auteur'|'isbn'} mode
  * @returns {Promise<ResultatRecherche[]>}
  */
-export async function rechercher(texte, mode, page = 0) {
+export async function rechercher(texte, mode, page = 0, auteur = '') {
+  const brut = await rechercherBrut(texte, mode, page, auteur);
+  /*
+   * La fusion est appliquee A LA SORTIE, jamais avant le cache : l'archive
+   * garde les resultats tels que la source les a rendus. Un jour ou la regle
+   * de fusion changera, les archives deja posees en beneficieront sans avoir
+   * a etre jetees.
+   * Mode ISBN excepte : un ISBN designe UNE edition precise, il n'y a rien a
+   * regrouper et fusionner y serait mentir.
+   */
+  if (mode === 'isbn') return { ...brut, nbSource: brut.resultats.length };
+
+  /*
+   * `nbSource` = combien la SOURCE a rendu, avant fusion. L'ecran en a besoin
+   * pour savoir s'il existe une page suivante : il comptait jusqu'ici les
+   * cartes affichees, ce qui devient faux des que la fusion en supprime.
+   * Mesure du 2026-08-27 : « germinal » rend 20 volumes et 6 cartes — sans ce
+   * compte, l'ecran concluait « plus rien a charger » et la saga suivante
+   * redevenait hors de portee, exactement le bug du retour d'usage 101.
+   */
+  return {
+    ...brut,
+    nbSource: brut.resultats.length,
+    resultats: fusionnerDoublons(brut.resultats, texte),
+  };
+}
+
+async function rechercherBrut(texte, mode, page = 0, auteur = '') {
   const requete = texte.trim();
   if (!requete) return { resultats: [], ancien: false, pose: null };
 
-  const cle = `${mode}:${requete.toLowerCase()}${page ? `#${page}` : ''}`;
+  /*
+   * L'auteur entre dans la CLE DE CACHE : « les fourmis » et « les fourmis de
+   * Werber » sont deux questions differentes, et servir la reponse de l'une
+   * pour l'autre annulerait tout l'interet du champ.
+   */
+  const precise = String(auteur || '').trim().toLowerCase();
+  const cle = `${mode}:${requete.toLowerCase()}${precise ? `@${precise}` : ''}${page ? `#${page}` : ''}`;
   const enCache = cacheRecherche.get(cle);
   if (enCache && Date.now() - enCache.pose < CACHE_TTL_MS) {
     return { resultats: enCache.resultats, ancien: false, pose: enCache.pose };
@@ -133,9 +321,31 @@ export async function rechercher(texte, mode, page = 0) {
     return { resultats: recente.resultats, ancien: false, pose: recente.pose };
   }
 
+  /*
+   * LA BnF PART EN MEME TEMPS QUE GOOGLE (tranche 4). Elle n'attend plus que
+   * Google tombe : elle sert desormais A CHAQUE recherche, pour combler ce qui
+   * manque aux fiches de Google — ISBN, editeur, annee. Voir
+   * `completerDepuisBnf` plus bas pour le pourquoi.
+   *
+   * Elle part AVANT l'appel Google et non apres, pour que les deux temps
+   * d'attente se recouvrent : la BnF repond en 76 a 1300 ms, Google en 430 a
+   * 1000 ms. Lancee en sequence, elle doublerait l'attente ; lancee en
+   * parallele, elle ne coute presque rien.
+   *
+   * Un seul appel par recherche, sur la PREMIERE page uniquement : la BnF ne
+   * pagine pas, et les pages suivantes profitent de toute facon de la fusion
+   * (tranche 2), qui rapproche leurs fiches de celles deja completees.
+   *
+   * `catch` des la creation : une promesse rejetee que personne n'attend
+   * encore ferait tomber l'application avant meme qu'on la regarde.
+   */
+  const promesseBnf = (mode !== 'isbn' && page === 0)
+    ? interrogerBnf(requete, mode, auteur).catch(() => [])
+    : null;
+
   let resultats;
   try {
-    resultats = await interroger(requete, mode, page);
+    resultats = await interroger(requete, mode, page, auteur);
   } catch (panne) {
     /*
      * FILET BnF (tranche 19). Google n'est pas incomplet, il est INSTABLE :
@@ -151,7 +361,9 @@ export async function rechercher(texte, mode, page = 0) {
      */
     if (mode !== 'isbn') {
       try {
-        const secours = await interrogerBnf(requete, mode);
+        // L'appel est deja parti au-dessus : on attend son resultat plutot que
+        // d'en lancer un second pour la meme question.
+        const secours = promesseBnf ? await promesseBnf : await interrogerBnf(requete, mode, auteur);
         if (secours.length) {
           const pose = Date.now();
           const illustres = secours.map(avecCouvertureDeRepli);
@@ -176,7 +388,15 @@ export async function rechercher(texte, mode, page = 0) {
     throw panne;
   }
 
-  const illustres = resultats.map(avecCouvertureDeRepli);
+  /*
+   * L'ordre compte : on complete D'ABORD avec la BnF — qui apporte les ISBN —
+   * puis on illustre. C'est l'ISBN nouvellement connu qui ouvre la couverture
+   * Open Library, sans une seule requete de plus (c'est une adresse d'image).
+   * Et tout cela AVANT l'archivage : la recherche rejouee demain sortira
+   * completee, sans rappeler personne.
+   */
+  const completes = completerDepuisBnf(resultats, promesseBnf ? await promesseBnf : []);
+  const illustres = completes.map(avecCouvertureDeRepli);
   const pose = Date.now();
   cacheRecherche.set(cle, { pose, resultats: illustres });
   // Volontairement non attendu : archiver ne doit pas retarder l'affichage.
@@ -185,16 +405,116 @@ export async function rechercher(texte, mode, page = 0) {
   return { resultats: illustres, ancien: false, pose };
 }
 
+// ---------------------------------------------------------------------------
+// COMPLETER LES FICHES DE GOOGLE AVEC LA BnF (retour d'usage 122, tranche 4)
+// ---------------------------------------------------------------------------
+
+/*
+ * « Les couvertures des livres ne s'affichent que tres peu dans la recherche,
+ * alors qu'en allant chercher une autre edition du livre, on trouve la bonne
+ * couverture. »
+ *
+ * Diagnostic : ce n'est pas la meme source qui repond. `avecCouvertureDeRepli`
+ * ne sait aller chercher une image Open Library qu'A PARTIR D'UN ISBN — et les
+ * volumes rendus par `intitle:` chez Google n'en portent souvent aucun. L'ecran
+ * des editions, lui, interroge la BnF, qui donne TOUJOURS ISBN et editeur : le
+ * repli y fonctionne a tous les coups. D'ou l'ecart ressenti.
+ *
+ * La BnF ne remplace donc pas Google, elle le COMPLETE : ses notices sont
+ * rapprochees des resultats par empreinte d'oeuvre, et servent a combler les
+ * trous. Aucune notice sans correspondance n'est ajoutee a la liste — sa
+ * pertinence en decouverte est mauvaise (une recherche « germinal » y rend une
+ * revue de Lormont avant le roman de Zola), et ce n'est pas ce qu'on lui
+ * demande ici.
+ *
+ * Si la BnF ne repond pas, la recherche s'affiche exactement comme avant :
+ * cette etape n'a pas de repli et n'en a pas besoin.
+ *
+ * CE QU'ELLE RAPPORTE VRAIMENT — mesure du 2026-08-27 sur 114 volumes reels,
+ * six recherches (germinal, les fourmis, la horde du contrevent, la quete
+ * d'Ewilan, le nom de la rose, la peste) :
+ *
+ *   + 18 editeurs   (16 % des volumes en gagnent un)
+ *   +  4 ISBN       (3,5 %), donc autant de couvertures rendues possibles
+ *
+ * L'EDITEUR est donc le vrai gain, pas la couverture : Google porte deja un
+ * ISBN dans la grande majorite des cas, et la ou il n'en a pas, la BnF ne
+ * connait souvent pas le livre non plus. L'ecart de couvertures ressenti
+ * entre la recherche et l'ecran des editions venait donc surtout d'ailleurs —
+ * de la fusion des doublons (tranche 2), qui reunit sur une seule carte la
+ * fiche qui porte l'image et celle qui porte l'ISBN.
+ * On garde tout de meme cette etape : un appel sans quota ni cle, lance en
+ * parallele, pour 16 % d'editeurs en plus, se paie de lui-meme. Deux exemples
+ * mesures : « la horde du contrevent » passe de 11 volumes sans editeur a 1,
+ * « le nom de la rose » de 11 a 5.
+ */
+
+/*
+ * Ce que la BnF sait et que Google ignore parfois. Ni `couvertureUrl` ni
+ * `resume` ni `nbPages` : elle n'en fournit aucun (voir sources/bnf.js). Ni
+ * `titre` ni `auteurs` : ils font l'identite du resultat, et c'est justement
+ * sur eux qu'on a fait le rapprochement — les remplacer serait circulaire.
+ */
+const CHAMPS_DE_LA_BNF = ['isbn13', 'isbn10', 'editeur', 'annee', 'datePublication', 'categories'];
+
+/**
+ * Complete des resultats avec les notices BnF qui leur correspondent.
+ *
+ * @param {ResultatRecherche[]} resultats ce que Google a rendu
+ * @param {ResultatRecherche[]} notices ce que la BnF a rendu pour la meme recherche
+ * @returns {ResultatRecherche[]} meme liste, meme ordre, trous combles
+ */
+export function completerDepuisBnf(resultats, notices) {
+  if (!notices || notices.length === 0) return resultats || [];
+
+  const parEmpreinte = new Map();
+  notices.forEach((n) => {
+    const auteur = Array.isArray(n.auteurs) ? n.auteurs[0] : n.auteurs;
+    if (!n.titre || !auteur) return;
+    // Meme cle lache qu'a la fusion : la BnF ecrit « Zola, Emile » la ou
+    // Google ecrit « Emile Zola », et l'ordre du nom ne doit pas empecher le
+    // rapprochement.
+    const cle = cleRegroupement(n.titre, n.auteurs);
+    // La PREMIERE notice gagne : la BnF rend ses editions de la plus proche a
+    // la plus lointaine, et prendre la derniere donnerait l'edition la plus
+    // obscure du lot.
+    if (!parEmpreinte.has(cle)) parEmpreinte.set(cle, n);
+  });
+
+  return (resultats || []).map((r) => {
+    const auteur = Array.isArray(r.auteurs) ? r.auteurs[0] : r.auteurs;
+    if (!r.titre || !auteur) return r;
+    const notice = parEmpreinte.get(cleRegroupement(r.titre, r.auteurs));
+    if (!notice) return r;
+
+    // Meme regle qu'a la fusion : on comble, on n'ecrase jamais. Google reste
+    // la source principale, y compris quand la BnF le contredit.
+    let complete = r;
+    CHAMPS_DE_LA_BNF.forEach((champ) => {
+      if (!estVide(complete[champ]) || estVide(notice[champ])) return;
+      complete = { ...complete, [champ]: notice[champ] };
+    });
+    return complete;
+  });
+}
+
 /* Le repli BnF. Un seul appel, jamais de reessai : si elle ne repond pas,
  * l'archive prend la suite. */
-async function interrogerBnf(requete, mode) {
+async function interrogerBnf(requete, mode, auteur = '') {
   if (mode === 'auteur') return bnf.rechercherParAuteur(requete);
+  /*
+   * Avec un auteur, on pose a la BnF la question qu'elle sait le mieux traiter
+   * — « quelles editions de ce texte, de cet auteur ? » — plutot qu'une
+   * recherche par titre seul. C'est la meme requete que l'ecran des editions.
+   */
+  const precise = String(auteur || '').trim();
+  if (precise) return bnf.rechercherEditions(requete, precise);
   return bnf.rechercherParTitre(requete);
 }
 
 /* Le chemin reseau, inchange — extrait pour que `rechercher` ne fasse plus que
  * decider entre le vif, le cache et l'archive. */
-async function interroger(requete, mode, page = 0) {
+async function interroger(requete, mode, page = 0, auteur = '') {
   let resultats;
   if (mode === 'auteur') {
     resultats = await google.rechercherParAuteur(requete, page);
@@ -249,7 +569,7 @@ async function interroger(requete, mode, page = 0) {
     // livre n'existe pas.
     if (resultats.length === 0 && panneGoogle) throw panneGoogle;
   } else {
-    resultats = await google.rechercherParTitre(requete, page);
+    resultats = await google.rechercherParTitre(requete, page, auteur);
   }
 
   return resultats;

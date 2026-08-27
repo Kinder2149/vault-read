@@ -8,7 +8,9 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  numeroDeTome, separerLesTomes, nombreDeTomes, serieAConfirmer, trierResultats,
+  numeroDeTome, separerLesTomes, organiserLEcran, nomDeSerie, nombreDeTomes,
+  serieAConfirmer, trierResultats,
+  scorePertinence,
 } from '../src/tomes.js';
 
 describe('Lire un numero de tome dans un titre', () => {
@@ -54,35 +56,156 @@ describe('Separer une serie du reste', () => {
     const bruts = ['Sans numéro', 'Ewilan tome 1', 'Autre chose', 'Ewilan tome 2',
       'Ewilan tome 7', 'Ewilan tome 5', 'Ewilan tome 3'].map(r);
 
-    const { tomes, autres } = separerLesTomes(bruts);
-    expect(tomes.map((x) => x.tome)).toEqual([1, 2, 3, 5, 7]);
+    const { series, autres } = separerLesTomes(bruts);
+    expect(series).toHaveLength(1);
+    expect(series[0].nom).toBe('Ewilan');
+    expect(series[0].tomes.map((x) => x.tome)).toEqual([1, 2, 3, 5, 7]);
     expect(autres).toHaveLength(2);
+  });
+
+  it('NE MELANGE PLUS deux series differentes (defaut du 2026-08-27)', () => {
+    /*
+     * Cas reel : « la quete d'Ewilan » assemblait en une seule « serie » les
+     * tomes 1 de trois cycles sans rapport, parce que le regroupement se
+     * faisait sur le NUMERO et jamais sur le nom.
+     */
+    const bruts = [
+      r('La Quete d Ewilan - Tome 01'), r('La Quete d Ewilan - Tome 02'),
+      r('La Quete d Ewilan - Tome 03'),
+      r('Les Mondes d Ewilan - Tome 01'), r('L Autre - Tome 01'),
+    ];
+    const { series, autres } = separerLesTomes(bruts);
+    expect(series).toHaveLength(1);
+    expect(series[0].nom).toBe('La Quete d Ewilan');
+    expect(series[0].tomes).toHaveLength(3);
+    // Les tomes 1 des deux autres cycles ne sont pas perdus : ils rejoignent
+    // le reste, plutot que de faire nombre dans une serie qui n-est pas la leur.
+    expect(autres).toHaveLength(2);
+  });
+
+  it('separe la bande dessinee des romans (cas Game of Thrones)', () => {
+    const bruts = [
+      r('A Game of Thrones - La Bataille des rois - Tome 1'),
+      r('A Game of Thrones - La Bataille des rois - Tome 3'),
+      r('A Game of Thrones - La Bataille des rois - Tome 4'),
+      r('Le trone de fer (A game of Thrones) Tome 3'),
+      r('Le trone de fer (A game of Thrones) Tome 4'),
+      r('Le trone de fer (A game of Thrones) Tome 5'),
+    ];
+    const { series } = separerLesTomes(bruts);
+    expect(series).toHaveLength(2);
+    expect(series.map((s) => s.nom).sort()).toEqual([
+      'A Game of Thrones - La Bataille des rois',
+      'Le trone de fer (A game of Thrones)',
+    ]);
   });
 
   it('garde ensemble deux editions du meme tome', () => {
     const bruts = ['S tome 1', 'S tome 1 poche', 'S tome 2', 'S tome 3'].map(r);
-    const { tomes } = separerLesTomes(bruts);
-    expect(tomes.map((x) => x.tome)).toEqual([1, 1, 2, 3]);
+    const { series } = separerLesTomes(bruts);
+    expect(series[0].tomes.map((x) => x.tome)).toEqual([1, 1, 2, 3]);
   });
 
   it('ne reorganise RIEN en dessous de trois tomes distincts', () => {
-    // Deux livres numerotes peuvent n'avoir aucun rapport entre eux.
+    // Deux livres numerotes peuvent n-avoir aucun rapport entre eux.
     const bruts = ['Un livre tome 1', 'Autre livre tome 2', 'Sans numéro'].map(r);
-    const { tomes, autres } = separerLesTomes(bruts);
-    expect(tomes).toHaveLength(0);
+    const { series, autres } = separerLesTomes(bruts);
+    expect(series).toHaveLength(0);
     expect(autres).toHaveLength(3);
   });
 
   it('ne touche a rien quand aucun titre n-est numerote', () => {
     const bruts = ['Germinal', 'La Bête humaine', 'Nana'].map(r);
-    const { tomes, autres } = separerLesTomes(bruts);
-    expect(tomes).toHaveLength(0);
+    const { series, autres } = separerLesTomes(bruts);
+    expect(series).toHaveLength(0);
+    expect(autres).toHaveLength(3);
+  });
+
+  it('un titre qui n-est QUE « Tome 3 » ne fonde aucune serie', () => {
+    const bruts = ['Tome 1', 'Tome 2', 'Tome 3'].map(r);
+    const { series, autres } = separerLesTomes(bruts);
+    expect(series).toHaveLength(0);
     expect(autres).toHaveLength(3);
   });
 
   it('supporte une liste vide', () => {
-    expect(separerLesTomes([])).toEqual({ tomes: [], autres: [] });
-    expect(separerLesTomes(null)).toEqual({ tomes: [], autres: [] });
+    expect(separerLesTomes([])).toEqual({ series: [], autres: [] });
+    expect(separerLesTomes(null)).toEqual({ series: [], autres: [] });
+  });
+});
+
+describe('Lire le nom d-une serie dans un titre de tome', () => {
+  it('coupe au marqueur de tome, et jette le sous-titre de l-episode', () => {
+    expect(nomDeSerie('La Quete d Ewilan - Tome 01')).toBe('La Quete d Ewilan');
+    expect(nomDeSerie('Le Nom de la Rose - Tome 02')).toBe('Le Nom de la Rose');
+    expect(nomDeSerie('Dune - T5 Les Hérétiques')).toBe('Dune');
+    expect(nomDeSerie('Le Trone de Fer (3)')).toBe('Le Trone de Fer');
+  });
+
+  it('ne laisse pas de parenthese orpheline', () => {
+    // « Le Trone de Fer (Tome 3) - La bataille des rois » laissait « Le Trone de Fer ( ».
+    expect(nomDeSerie('Le Trone de Fer (Tome 3) - La bataille des rois')).toBe('Le Trone de Fer');
+  });
+
+  it('rend le titre inchange quand il ne porte aucun numero', () => {
+    expect(nomDeSerie('Germinal')).toBe('Germinal');
+  });
+});
+
+describe('L-ordre de l-ecran : une serie ne passe plus devant par principe', () => {
+  const livre = (titre, extra = {}) => ({
+    cleSource: titre,
+    titre,
+    sousTitre: null,
+    auteurs: ['Un Auteur'],
+    annee: '2020',
+    datePublication: '2020',
+    couvertureUrl: 'https://exemple/x.jpg',
+    isbn13: '9782000000000',
+    editeur: 'Un Editeur',
+    nbPages: 300,
+    langue: 'fr',
+    ...extra,
+  });
+
+  it('met le livre cherche AVANT une serie qui ne fait que le mentionner', () => {
+    /*
+     * Cas reel du 2026-08-27 : « game of thrones » installait la bande
+     * dessinee « La Bataille des rois » tout en haut, et repoussait le roman
+     * de Martin sous la ligne de flottaison.
+     */
+    const liste = [
+      livre('A Game of Thrones - La Bataille des rois - Tome 1'),
+      livre('A Game of Thrones - La Bataille des rois - Tome 2'),
+      livre('A Game of Thrones - La Bataille des rois - Tome 3'),
+      livre('A Game of Thrones'),
+    ];
+    const suite = organiserLEcran(liste, 'game of thrones');
+    expect(suite[0].type).toBe('livres');
+    expect(suite[0].livres[0].titre).toBe('A Game of Thrones');
+  });
+
+  it('laisse la serie en tete quand c-est bien elle qu-on cherche', () => {
+    const liste = [
+      livre('La Quete d Ewilan - Tome 01'),
+      livre('La Quete d Ewilan - Tome 02'),
+      livre('La Quete d Ewilan - Tome 03'),
+      livre('Un essai sans rapport'),
+    ];
+    const suite = organiserLEcran(liste, 'la quete d ewilan');
+    expect(suite[0].type).toBe('serie');
+    expect(suite[0].nom).toBe('La Quete d Ewilan');
+  });
+
+  it('rassemble les livres isoles qui se suivent en une seule grille', () => {
+    const suite = organiserLEcran([livre('A'), livre('B'), livre('C')], 'a');
+    expect(suite).toHaveLength(1);
+    expect(suite[0].livres).toHaveLength(3);
+  });
+
+  it('sans requete, garde l-ordre d-arrivee (mode Auteur)', () => {
+    const suite = organiserLEcran([livre('Z'), livre('A')], '');
+    expect(suite[0].livres.map((x) => x.titre)).toEqual(['Z', 'A']);
   });
 });
 
@@ -109,13 +232,13 @@ describe('Reperer une serie PRESSENTIE, pour la confirmer tout de suite', () => 
     ];
     expect(serieAConfirmer(page1)).toBe(true);
     // et le bloc ne s-affiche PAS encore : deux tomes ne font pas une serie.
-    expect(separerLesTomes(page1).tomes).toHaveLength(0);
+    expect(separerLesTomes(page1).series).toHaveLength(0);
   });
 
   it('TROIS tomes : inutile de confirmer, le bloc s-affiche deja', () => {
     const page1 = [r('S tome 1'), r('S tome 2'), r('S tome 3')];
     expect(serieAConfirmer(page1)).toBe(false);
-    expect(separerLesTomes(page1).tomes).toHaveLength(3);
+    expect(separerLesTomes(page1).series[0].tomes).toHaveLength(3);
   });
 
   it('ZERO ou UN tome : rien a confirmer, ce n-est pas une serie', () => {
@@ -132,9 +255,11 @@ describe('Trier les resultats', () => {
    */
   const l = (titre, date) => ({ cleSource: titre, titre, datePublication: date, annee: date });
 
-  it('« pertinence » ne touche a rien : c-est l-ordre de la source', () => {
+  it('« pertinence » SANS requete rend l-ordre de la source', () => {
+    // C'est le cas du mode Auteur : le regroupement par ecrivain decide.
     const liste = [l('A', '1990'), l('B', '2020'), l('C', '2005')];
     expect(trierResultats(liste, 'pertinence').map((x) => x.titre)).toEqual(['A', 'B', 'C']);
+    expect(trierResultats(liste, 'pertinence', '  ').map((x) => x.titre)).toEqual(['A', 'B', 'C']);
   });
 
   it('« plus recent » met les editions actuelles en tete', () => {
@@ -164,5 +289,144 @@ describe('Trier les resultats', () => {
   it('supporte une liste vide', () => {
     expect(trierResultats([], 'recent')).toEqual([]);
     expect(trierResultats(null, 'recent')).toEqual([]);
+  });
+});
+
+describe('Classer par pertinence (tranche 1)', () => {
+  /*
+   * Retour d'usage 121 : « il me propose en premier des choix peu pertinents,
+   * je dois defiler pour voir ce que je cherche ». Tous les titres ci-dessous
+   * sont des titres REELS rendus par Google sur ces recherches.
+   */
+  const livre = (titre, extra = {}) => ({
+    cleSource: titre,
+    titre,
+    sousTitre: null,
+    auteurs: ['Un Auteur'],
+    annee: '2020',
+    datePublication: '2020',
+    couvertureUrl: 'https://exemple/x.jpg',
+    isbn13: '9782000000000',
+    editeur: 'Un Editeur',
+    nbPages: 300,
+    langue: 'fr',
+    ...extra,
+  });
+
+  const ordre = (liste, requete) => trierResultats(liste, 'pertinence', requete).map((x) => x.titre);
+
+  it('met le titre EXACT en tete, meme arrive en dernier', () => {
+    const liste = [
+      livre('Le livre des festins'),
+      livre('Comprendre le leadership avec Game of Thrones'),
+      livre('Game of Thrones'),
+    ];
+    expect(ordre(liste, 'game of thrones')[0]).toBe('Game of Thrones');
+  });
+
+  it('fait passer l-oeuvre devant l-essai qui PARLE d-elle', () => {
+    // Le piege reel : Google range le propos en SOUS-TITRE, pas en titre. Sans
+    // la penalite de longueur, l'essai obtenait le score du titre exact.
+    const liste = [
+      livre('Game of Thrones', { sousTitre: 'une metaphysique des meurtres' }),
+      livre('Game of Thrones'),
+    ];
+    expect(ordre(liste, 'game of thrones')[0]).toBe('Game of Thrones');
+  });
+
+  it('prefere la fiche complete a la notice fantome', () => {
+    const liste = [
+      livre('Germinal', {
+        cleSource: 'pauvre', auteurs: [], couvertureUrl: null, isbn13: null, isbn10: null,
+        editeur: null, nbPages: null,
+      }),
+      livre('Germinal', { cleSource: 'complet' }),
+    ];
+    const classe = trierResultats(liste, 'pertinence', 'germinal');
+    expect(classe[0].cleSource).toBe('complet');
+  });
+
+  it('accepte les accents et la casse de part et d-autre', () => {
+    const liste = [livre('Un autre livre'), livre('La Quête d’Ewilan')];
+    expect(ordre(liste, 'la quete d ewilan')[0]).toBe('La Quête d’Ewilan');
+  });
+
+  it('retrouve un livre dont on ne tape que les mots-cles', () => {
+    const liste = [livre('Roman sans rapport'), livre('La Quête d’Ewilan')];
+    expect(ordre(liste, 'ewilan quete')[0]).toBe('La Quête d’Ewilan');
+  });
+
+  it('la completude DEPARTAGE, elle ne remonte pas un hors-sujet', () => {
+    // Une fiche parfaite qui ne correspond pas doit rester derriere une fiche
+    // pauvre qui correspond : le titre prime toujours sur la completude.
+    const liste = [
+      livre('Un tout autre roman'),
+      livre('Germinal', {
+        auteurs: [], couvertureUrl: null, isbn13: null, isbn10: null,
+        editeur: null, nbPages: null, langue: 'en',
+      }),
+    ];
+    expect(ordre(liste, 'germinal')[0]).toBe('Germinal');
+  });
+
+  it('ignore l-article de tete : « A Game of Thrones » vaut une correspondance exacte', () => {
+    // Cas reel du 2026-08-27 : le roman de Martin arrivait DERNIER, derriere
+    // une dizaine d-essais, pour un « A » que personne ne tape.
+    const liste = [
+      livre('La mythologie selon Game of Thrones'),
+      livre('A Game of Thrones'),
+    ];
+    expect(ordre(liste, 'game of thrones')[0]).toBe('A Game of Thrones');
+  });
+
+  it('ne retire l-article que s-il reste un titre derriere', () => {
+    // « Le Horla » ne doit pas devenir « Horla » face a une recherche « le ».
+    expect(scorePertinence(livre('Un'), 'un')).toBeGreaterThan(scorePertinence(livre('Un'), 'deux'));
+  });
+
+  it('un titre en alphabet non latin ne passe plus pour un titre exact', () => {
+    /*
+     * Defaut livre en tranche 1, mesure le 2026-08-27 : « Germinal /
+     * Жерминаль. Книга для чтения с комментариями » arrivait PREMIER sur
+     * « germinal ». La comparaison reduit les titres a l-alphabet latin, donc
+     * le cyrillique disparaissait AVANT d-etre compte, et l-edition russe
+     * decrochait le score d-une correspondance parfaite sans aucune penalite.
+     */
+    const liste = [
+      livre('Germinal / Жерминаль. Книга для чтения с комментариями', { cleSource: 'ru', langue: 'ru' }),
+      livre('Germinal', { cleSource: 'fr' }),
+    ];
+    expect(ordre(liste, 'germinal')[0]).toBe('Germinal');
+  });
+
+  it('le NOMBRE D-EDITIONS departage, sans jamais primer sur le titre', () => {
+    // 28 fiches pour le Germinal de Zola, au plus 3 pour tout le reste.
+    const beaucoup = livre('Germinal', { cleSource: 'a', clesSource: Array.from({ length: 28 }, (_, i) => `gb:${i}`) });
+    const seule = livre('Germinal', { cleSource: 'b' });
+    expect(trierResultats([seule, beaucoup], 'pertinence', 'germinal')[0].cleSource).toBe('a');
+
+    // Mais un livre tres edite qui ne correspond PAS reste derriere.
+    const horsSujet = livre('Un tout autre roman', { cleSource: 'c', clesSource: Array.from({ length: 30 }, (_, i) => `gb:x${i}`) });
+    expect(trierResultats([horsSujet, seule], 'pertinence', 'germinal')[0].cleSource).toBe('b');
+  });
+
+  it('a score egal, garde l-ordre d-arrivee de Google', () => {
+    const liste = [livre('Germinal', { cleSource: 'a' }), livre('Germinal', { cleSource: 'b' })];
+    expect(trierResultats(liste, 'pertinence', 'germinal').map((x) => x.cleSource))
+      .toEqual(['a', 'b']);
+  });
+
+  it('NE FILTRE RIEN : tous les resultats restent affiches', () => {
+    const liste = [livre('A'), livre('B'), livre('Germinal')];
+    expect(trierResultats(liste, 'pertinence', 'germinal')).toHaveLength(3);
+  });
+
+  it('ne touche pas au tri « plus recent »', () => {
+    const liste = [livre('Germinal', { datePublication: '1885' }), livre('Autre', { datePublication: '2024' })];
+    expect(trierResultats(liste, 'recent', 'germinal')[0].titre).toBe('Autre');
+  });
+
+  it('supporte un resultat sans titre ni champs', () => {
+    expect(() => scorePertinence({}, 'germinal')).not.toThrow();
   });
 });

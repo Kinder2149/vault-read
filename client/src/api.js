@@ -99,8 +99,20 @@ export async function rechercher(texte, mode) {
  * simple ci-dessus.
  * @returns {Promise<{resultats: ResultatRecherche[], ancien: boolean, pose: number|null}>}
  */
-export async function rechercherAvecEtat(texte, mode, page = 0) {
-  return books.rechercher(texte, mode, page);
+export async function rechercherAvecEtat(texte, mode, page = 0, auteur = '') {
+  return books.rechercher(texte, mode, page, auteur);
+}
+
+/*
+ * §2.1 s'enrichit : regrouper les doublons d'une liste deja affichee.
+ * L'ecran en a besoin quand il AJOUTE une page a ce qu'il montre — la
+ * meilleure fiche d'un livre peut arriver en page 2 alors que la pauvre est
+ * deja a l'ecran. `async` comme tout le reste de la facade, meme si le calcul
+ * est immediat : c'est la regle de ce fichier, et elle a deja evite une
+ * reecriture d'ecran une fois.
+ */
+export async function fusionnerResultats(liste, texte) {
+  return books.fusionnerDoublons(liste, texte);
 }
 
 /* Les dernieres recherches, pour les reproposer (retour d'usage 100). */

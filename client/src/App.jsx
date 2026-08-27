@@ -188,7 +188,25 @@ export default function App() {
       </header>
 
       <main className="content">
-        {view === 'recherche' && <Recherche editionsSuivies={editionsSuivies} onSuivre={suivre} onChangement={recharger} />}
+        {/*
+          L'ECRAN DE RECHERCHE N'EST PLUS DEMONTE (retour d'usage 123, tranche 3).
+          « J'ai l'impression que rien n'est mis en cache, tout doit recharger a
+          chaque fois. » Le cache fonctionnait pourtant : c'est l'ecran qui
+          disparaissait. Monte sous condition d'onglet comme les autres, il
+          etait DETRUIT a chaque changement — resultats, pages defilees, tri et
+          position perdus —, et l'on repartait de la premiere page.
+          On le masque desormais au lieu de le supprimer. Il est le seul dans ce
+          cas : les autres ecrans lisent la base, qui ne bouge pas sous eux, et
+          les remonter ne coute rien.
+        */}
+        <div className={view === 'recherche' ? undefined : 'ecran--masque'}>
+          <Recherche
+            actif={view === 'recherche'}
+            editionsSuivies={editionsSuivies}
+            onSuivre={suivre}
+            onChangement={recharger}
+          />
+        </div>
 
         {view === 'lecture' && (
           <MaLecture

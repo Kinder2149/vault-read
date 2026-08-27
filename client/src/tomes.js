@@ -58,27 +58,116 @@ export function numeroDeTome(titre) {
  *
  * @returns {{tomes: Array, autres: Array}} `tomes` vide si ce n'est pas une serie
  */
+/*
+ * LE NOM DE LA SERIE, lu dans le titre d'un tome (correction 2).
+ * « La Quete d'Ewilan - Tome 01 » -> « La Quete d'Ewilan ».
+ * On coupe A PARTIR du marqueur de tome et on jette ce qui suit : le
+ * sous-titre du tome (« La glace et le feu ») nomme l'episode, pas la serie.
+ */
+export function nomDeSerie(titre) {
+  return String(titre || '')
+    .replace(/[-–—,:]?\s*\b(?:tome|livre|volume|vol\.?|t\.?)\s*0*\d{1,3}\b[\s\S]*$/i, '')
+    .replace(/\s*\(\d{1,3}\)\s*$/, '')
+    .replace(/\s*#\d{1,3}\b[\s\S]*$/, '')
+    // « Le Trone de Fer (Tome 3) - La bataille des rois » laisse une
+    // parenthese ouvrante orpheline : elle part avec le reste.
+    .replace(/[\s\-–—,:.([]+$/, '')
+    .trim();
+}
+
+function cleDeSerie(titre) {
+  return comparable(nomDeSerie(titre)).replace(/ /g, '-');
+}
+
+/**
+ * Separe les resultats en SERIES NOMMEES et « le reste ».
+ *
+ * Reecrit apres l'audit du 2026-08-27. La version precedente collectait tout
+ * titre portant un numero, SANS REGARDER DE QUELLE SERIE il s'agissait, et
+ * appelait le tas « La serie, dans l'ordre ». Deux consequences mesurees :
+ *
+ *  - « la quete d'Ewilan » assemblait en une seule « serie » les tomes 1 de
+ *    « La Quete d'Ewilan », des « Mondes d'Ewilan » et de « L'Autre » ;
+ *  - « game of thrones » melait la bande dessinee « La Bataille des rois » et
+ *    les romans « Le Trone de fer », et installait la BD en tete d'ecran.
+ *
+ * On groupe donc par NOM de serie, et chaque serie s'annonce par le sien.
+ *
+ * Le seuil de TROIS tomes distincts est conserve, mais il s'applique
+ * desormais PAR SERIE : deux tomes peuvent etre deux livres sans rapport, trois
+ * tomes du meme titre sont une serie.
+ *
+ * @returns {{series: Array<{cle: string, nom: string, tomes: Array}>, autres: Array}}
+ */
 export function separerLesTomes(resultats) {
-  const numerotes = [];
-  const autres = [];
+  const parSerie = new Map();
+  const sansNumero = [];
 
   (resultats || []).forEach((r) => {
     const n = numeroDeTome(r.titre);
-    if (n === null) autres.push(r);
-    else numerotes.push({ ...r, tome: n });
+    const cle = n === null ? '' : cleDeSerie(r.titre);
+    // Un titre qui n'est QUE « Tome 3 » ne nomme aucune serie : il rejoint le
+    // reste plutot que de fonder une serie anonyme.
+    if (n === null || !cle) { sansNumero.push(r); return; }
+    if (!parSerie.has(cle)) parSerie.set(cle, []);
+    parSerie.get(cle).push({ ...r, tome: n });
   });
 
-  // Moins de trois numeros : ce n'est pas une serie, on ne reorganise rien.
-  const distincts = new Set(numerotes.map((r) => r.tome));
-  if (distincts.size < 3) return { tomes: [], autres: resultats || [] };
+  const series = [];
+  const autres = [...sansNumero];
 
-  /*
-   * Tri par numero, puis par ordre d'arrivee de Google — qui est deja un ordre
-   * de pertinence. Deux editions du meme tome restent donc voisines, la plus
-   * pertinente en premier.
-   */
-  numerotes.sort((a, b) => a.tome - b.tome);
-  return { tomes: numerotes, autres };
+  parSerie.forEach((tomes, cle) => {
+    const distincts = new Set(tomes.map((t) => t.tome));
+    if (distincts.size < 3) { autres.push(...tomes); return; }
+    /*
+     * Tri par numero, puis par ordre d'arrivee — qui est deja un ordre de
+     * pertinence. Deux editions du meme tome restent voisines, la meilleure
+     * en premier.
+     */
+    series.push({ cle, nom: nomDeSerie(tomes[0].titre), tomes: [...tomes].sort((a, b) => a.tome - b.tome) });
+  });
+
+  return { series, autres };
+}
+
+/**
+ * L'ORDRE DE L'ECRAN : series et livres isoles dans une seule suite, classes
+ * par pertinence (correction 2).
+ *
+ * Le bloc « serie » passait AVANT TOUT le reste, quoi qu'il contienne. Sur
+ * « game of thrones », il installait donc une bande dessinee au-dessus du
+ * roman de Martin — c'est-a-dire tout en haut d'un ecran ou l'utilisateur
+ * cherchait justement le roman.
+ *
+ * Une serie vaut desormais ce que vaut son MEILLEUR tome. Elle passe devant si
+ * elle le merite, et derriere sinon.
+ *
+ * @returns {Array<{type: 'serie', nom: string, tomes: Array}|{type: 'livres', livres: Array}>}
+ *   les livres isoles consecutifs sont rassembles en une seule grille.
+ */
+export function organiserLEcran(resultats, requete) {
+  const { series, autres } = separerLesTomes(resultats || []);
+
+  const blocs = [
+    ...series.map((s) => ({
+      bloc: { type: 'serie', cle: s.cle, nom: s.nom, tomes: s.tomes },
+      note: Math.max(...s.tomes.map((t) => scorePertinence(t, requete))),
+    })),
+    ...autres.map((r) => ({ bloc: { type: 'livre', livre: r }, note: scorePertinence(r, requete) })),
+  ];
+
+  // Sans requete, l'ordre d'arrivee fait foi (mode Auteur) : on ne classe pas.
+  if (comparable(requete)) blocs.sort((a, b) => b.note - a.note);
+
+  // Les livres isoles qui se suivent forment une seule grille.
+  const suite = [];
+  blocs.forEach(({ bloc }) => {
+    if (bloc.type === 'serie') { suite.push(bloc); return; }
+    const dernier = suite[suite.length - 1];
+    if (dernier && dernier.type === 'livres') dernier.livres.push(bloc.livre);
+    else suite.push({ type: 'livres', livres: [bloc.livre] });
+  });
+  return suite;
 }
 
 /*
@@ -140,17 +229,201 @@ function anneeDe(r) {
   return m ? Number(m[1]) : 0;
 }
 
+// ---------------------------------------------------------------------------
+// PERTINENCE (retour d'usage 121, tranche 1)
+// ---------------------------------------------------------------------------
+
+/*
+ * « La recherche me propose en premier des choix peu pertinents, je dois
+ * defiler pour voir ce que je cherche. »
+ *
+ * Constat : personne ne jugeait la pertinence a part Google. `intitle:` rend
+ * vingt volumes, l'ecran les affichait DANS L'ORDRE D'ARRIVEE, et le tri dit
+ * « Pertinence » ne faisait rien du tout. Google range devant des essais SUR
+ * une oeuvre plutot que l'oeuvre — « game of thrones » rend « une
+ * metaphysique des meurtres », « le livre des festins », « comprendre le
+ * leadership avec la serie ».
+ *
+ * On classe donc nous-memes. Trois choses, par ordre d'importance :
+ *  1. le TITRE colle-t-il a ce qui a ete tape ;
+ *  2. la fiche est-elle SERIEUSE — un livre qui porte auteur, ISBN, editeur et
+ *     couverture est une vraie edition, pas une notice fantome ;
+ *  3. est-elle en francais.
+ *
+ * Et une penalite : un titre nettement plus long que la recherche est la
+ * signature de l'essai et de l'analyse.
+ *
+ * Le score CLASSE, il ne filtre jamais : aucun resultat ne disparait, ils
+ * changent seulement d'ordre. Aucun appel reseau, aucune donnee nouvelle —
+ * tout ce qui sert est deja dans le resultat.
+ */
+
+/*
+ * Normalisation de COMPARAISON, a ne pas confondre avec l'empreinte d'oeuvre
+ * de books.js. Celle-la ecrase la ponctuation en tirets et coupe le
+ * sous-titre pour fabriquer une CLE ; celle-ci garde les mots separes par des
+ * espaces, parce qu'on a besoin de compter les mots et de tester un debut de
+ * chaine. Deux besoins differents, deux fonctions — les melanger casserait la
+ * deduplication sans bruit.
+ */
+function comparable(texte) {
+  return String(texte || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function mots(texte) {
+  return texte ? texte.split(' ').filter(Boolean) : [];
+}
+
+/*
+ * L'ARTICLE DE TETE NE COMPTE PAS. Verifie sur appels reels le 2026-08-27 :
+ * une recherche « game of thrones » rendait le roman de Martin — intitule
+ * « A Game of Thrones » — EN DERNIER, derriere une dizaine d'essais. Il ne
+ * ratait la correspondance exacte que d'un « A ».
+ * Personne ne tape l'article de tete, et aucune source ne s'accorde sur sa
+ * presence : on le retire des DEUX cotes avant de comparer.
+ */
+const ARTICLES = new Set(['a', 'an', 'the', 'le', 'la', 'les', 'l', 'un', 'une', 'des']);
+
+function sansArticle(texte) {
+  const m = mots(texte);
+  return m.length > 1 && ARTICLES.has(m[0]) ? m.slice(1).join(' ') : texte;
+}
+
+/*
+ * Ce que vaut la correspondance du titre, de 0 a 100. Le titre EXACT domine
+ * tout le reste : c'est le cas ou l'utilisateur sait ce qu'il cherche, et
+ * c'est celui qui doit arriver en tete.
+ */
+function correspondance(titreBrut, requeteBrute) {
+  if (!requeteBrute) return 0;
+  const titre = sansArticle(titreBrut);
+  const requete = sansArticle(requeteBrute);
+
+  if (titre === requete) return 100;
+  if (titre.startsWith(`${requete} `)) return 70;
+  if (titre.includes(requete)) return 40;
+
+  // Pas la phrase entiere, mais peut-etre tous ses mots (« ewilan quete »).
+  const cherches = mots(requete);
+  if (cherches.length === 0) return 0;
+  const presents = mots(titre);
+  const trouves = cherches.filter((m) => presents.includes(m)).length;
+  return Math.round(25 * (trouves / cherches.length));
+}
+
+/*
+ * Penalite de longueur. On compte les mots EN TROP par rapport a la recherche,
+ * sous-titre compris — c'est la que se cache la plus grosse part du bruit :
+ * Google range « une metaphysique des meurtres » en sous-titre, pas en titre,
+ * et sans cela l'essai obtenait le score d'une correspondance exacte.
+ * Plafonnee a 40 : une correspondance exacte propre (100) reste toujours
+ * devant une correspondance exacte noyee sous un sous-titre (60).
+ */
+function penaliteLongueur(brut, requete) {
+  if (!requete) return 0;
+  /*
+   * LES MOTS SE COMPTENT SUR LE TITRE BRUT, pas sur sa reduction latine.
+   * Defaut livre en tranche 1 et corrige ici : `comparable()` remplace tout ce
+   * qui n'est ni lettre latine ni chiffre par des espaces. Un titre en
+   * cyrillique perd donc TOUS ses mots avant d'etre compte.
+   * Mesure du 2026-08-27 sur « germinal », trois pages chargees : l'edition
+   * « Germinal / Жерминаль. Книга для чтения с комментариями » se reduisait au
+   * seul mot « germinal », decrochait le score d'une correspondance parfaite,
+   * n'ecopait d'aucune penalite — et arrivait PREMIERE. Le classement changeait
+   * donc sous les yeux de l'utilisateur au fil du defilement.
+   * Compter les mots avant reduction remet ce titre a sa place.
+   */
+  const enTrop = String(brut || '').trim().split(/\s+/).filter(Boolean).length
+    - mots(requete).length;
+  if (enTrop <= 0) return 0;
+  return Math.min(enTrop * 4, 40);
+}
+
+/*
+ * NOTORIETE — combien d'editions de ce livre existent (correction 4).
+ *
+ * La fusion (tranche 2) rassemble sur une carte toutes les fiches du meme
+ * livre : leur nombre est donc deja connu, et c'est la meilleure approximation
+ * de notoriete disponible. Aucune source n'expose de popularite (arbitrage 16,
+ * confirme) ; le nombre d'editions, lui, est gratuit et parle.
+ *
+ * Mesure du 2026-08-27 : sur « germinal », le roman de Zola compte 28 fiches
+ * et tout le reste au plus 3 ; sur « le nom de la rose », Umberto Eco en
+ * compte 8.
+ *
+ * PLAFONNEE A 24 — soit moins qu'un ecart de correspondance de titre. Un livre
+ * tres edite ne doit jamais passer devant un livre qui correspond mieux : la
+ * notoriete DEPARTAGE des candidats credibles, elle n'en fabrique pas.
+ */
+function notoriete(r) {
+  const editions = Array.isArray(r.clesSource) ? r.clesSource.length : 1;
+  return Math.min((editions - 1) * 6, 24);
+}
+
+/*
+ * Completude de la fiche. Les poids sont volontairement petits devant la
+ * correspondance de titre : ils DEPARTAGENT deux livres qui collent aussi bien
+ * a la recherche, ils ne font jamais remonter un livre hors sujet.
+ * L'auteur pese le plus : une notice sans auteur n'est presque jamais le livre
+ * qu'on cherche.
+ */
+function completude(r) {
+  let points = 0;
+  if (Array.isArray(r.auteurs) ? r.auteurs.length : r.auteurs) points += 12;
+  if (r.isbn13 || r.isbn10) points += 8;
+  if (r.editeur) points += 6;
+  if (r.couvertureUrl) points += 6;
+  if (r.nbPages) points += 3;
+  return points;
+}
+
 /**
- * Trie une liste de resultats. « pertinence » rend l'ordre d'origine — celui
- * de la source, qui reste le meilleur pour trouver un titre precis.
+ * Note de pertinence d'un resultat pour une recherche donnee.
+ * Exportee pour pouvoir etre lue au banc d'essai, pas pour etre affichee :
+ * l'utilisateur ne doit jamais voir un chiffre, seulement un bon ordre.
+ * @param {object} resultat
+ * @param {string} requete texte tape par l'utilisateur (deja normalise ou non)
+ * @returns {number}
+ */
+export function scorePertinence(resultat, requete) {
+  const q = comparable(requete);
+  const titre = comparable(resultat.titre);
+
+  return correspondance(titre, q)
+    - penaliteLongueur(`${resultat.titre || ''} ${resultat.sousTitre || ''}`, q)
+    + completude(resultat)
+    + notoriete(resultat)
+    + (resultat.langue === 'fr' ? 8 : 0);
+}
+
+/**
+ * Trie une liste de resultats.
+ *
+ * « pertinence » ne rend PLUS l'ordre d'origine : il applique le score
+ * ci-dessus, en gardant l'ordre d'arrivee de Google comme depart d'egalite —
+ * cet ordre reste une information, il n'est simplement plus le seul.
+ * Sans `requete`, il n'y a rien a quoi comparer : on rend la liste telle
+ * quelle, comme avant (c'est le cas du mode Auteur, ou le regroupement par
+ * ecrivain decide de l'ordre).
  *
  * Les livres SANS DATE vont a la fin et non au debut : un livre non date n'est
  * pas un livre ancien, et le placer en tete d'un tri « plus recent » serait
  * trompeur.
  */
-export function trierResultats(resultats, tri) {
+export function trierResultats(resultats, tri, requete = '') {
   const liste = [...(resultats || [])];
-  if (tri !== 'recent') return liste;
+
+  if (tri !== 'recent') {
+    if (!comparable(requete)) return liste;
+    const notes = new Map(liste.map((r) => [r, scorePertinence(r, requete)]));
+    // `sort` est stable : a score egal, l'ordre de Google est conserve.
+    return liste.sort((a, b) => notes.get(b) - notes.get(a));
+  }
 
   return liste.sort((a, b) => {
     const an = anneeDe(a);

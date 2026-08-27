@@ -151,6 +151,16 @@ describe('Les quatre ecrans principaux', () => {
     expect(html).toContain('Pour toi');
   });
 
+  it('Recherche se dessine aussi quand elle est MASQUEE', async () => {
+    // Tranche 3 : l'ecran reste monte derriere les autres onglets. Il doit
+    // donc supporter d'etre rendu inactif, sans surcouche ni defilement.
+    const { default: Recherche } = await import('../src/screens/Recherche.jsx');
+    const html = dessiner(
+      <Recherche actif={false} editionsSuivies={new Set()} onSuivre={() => {}} onChangement={() => {}} />,
+    );
+    expect(html).toContain('Pour toi');
+  });
+
   it('Bibliotheque, vide', async () => {
     const { default: Bibliotheque } = await import('../src/screens/Bibliotheque.jsx');
     const html = dessiner(<Bibliotheque bibliotheque={[]} cardProps={cardProps} />);

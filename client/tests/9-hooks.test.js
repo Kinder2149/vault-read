@@ -98,3 +98,26 @@ describe('Aucun hook apres un retour anticipe', () => {
     expect(apres).toHaveLength(1);
   });
 });
+
+describe('L-ecran de recherche reste monte (tranche 3)', () => {
+  /*
+   * Retour d'usage 123 : « rien n-est mis en cache, tout doit recharger ». Le
+   * cache fonctionnait ; c-est l-ecran qui etait DETRUIT au changement
+   * d-onglet, et avec lui les resultats, les pages defilees et le tri.
+   *
+   * On lit le code plutot que de simuler un changement d-onglet : la regression
+   * tient en un seul caractere — remettre `view === 'recherche' &&` devant le
+   * composant — et c-est exactement cela qu-il faut interdire.
+   */
+  const app = readFileSync(fileURLToPath(new URL('../src/App.jsx', import.meta.url)), 'utf8');
+
+  it('n-est PAS monte sous condition, contrairement aux autres ecrans', () => {
+    expect(app).not.toMatch(/view === 'recherche' &&\s*<Recherche/);
+    expect(app).toContain('<Recherche');
+  });
+
+  it('est masque par une classe, et recoit de savoir s-il est actif', () => {
+    expect(app).toContain('ecran--masque');
+    expect(app).toMatch(/actif=\{view === 'recherche'\}/);
+  });
+});

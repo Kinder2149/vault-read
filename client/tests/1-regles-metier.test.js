@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { empreinteOeuvre } from '../src/books.js';
+import { empreinteOeuvre, fusionnerDoublons } from '../src/books.js';
 import { normaliserDatePublication, lireCycle } from '../src/sources/openlibrary.js';
 import { estIsbn } from '../src/scanner.js';
 import { progressionDe, aujourdhui, classeStatut, LIBELLES, STATUTS, ageLisible } from '../src/status.js';
@@ -226,5 +226,136 @@ describe('Dire l-age d-un resultat garde sur l-appareil', () => {
     expect(ageLisible(ilYA(3 * 60 * 60 * 1000))).toMatch(/3 heures/);
     expect(ageLisible(ilYA(26 * 60 * 60 * 1000))).toBe('d’hier');
     expect(ageLisible(ilYA(3 * 24 * 60 * 60 * 1000))).toMatch(/3 jours/);
+  });
+});
+
+describe('Fusionner les doublons de recherche (tranche 2)', () => {
+  /*
+   * Retour d'usage 122 : « un livre plutot connu apparait sans editeur et sans
+   * couverture, alors que le tome 1 est complet juste a cote ». Le meme livre
+   * revient chez Google sous des fiches de qualite inegale ; aucune ne les
+   * rapprochait. Cas construits sur des titres REELS.
+   */
+  const fiche = (cleSource, extra = {}) => ({
+    cleSource,
+    source: 'google',
+    titre: 'Les Fourmis',
+    sousTitre: null,
+    auteurs: ['Bernard Werber'],
+    annee: '1991',
+    datePublication: '1991',
+    couvertureUrl: null,
+    resume: null,
+    categories: [],
+    langue: 'fr',
+    isbn13: null,
+    isbn10: null,
+    nbPages: null,
+    editeur: null,
+    ...extra,
+  });
+
+  it('ne rend qu-UNE carte pour un livre vu plusieurs fois', () => {
+    const liste = [fiche('gb:1'), fiche('gb:2'), fiche('gb:3')];
+    expect(fusionnerDoublons(liste, 'les fourmis')).toHaveLength(1);
+  });
+
+  it('COMBLE les trous de la fiche retenue avec ce que les autres savent', () => {
+    // Le cas exact du retour d'usage : une fiche sans editeur ni couverture,
+    // et la reponse quinze lignes plus bas dans la meme liste.
+    const liste = [
+      fiche('gb:pauvre'),
+      fiche('gb:editeur', { editeur: 'Albin Michel' }),
+      fiche('gb:image', { couvertureUrl: 'https://exemple/couv.jpg', nbPages: 320 }),
+    ];
+    const [carte] = fusionnerDoublons(liste, 'les fourmis');
+    expect(carte.editeur).toBe('Albin Michel');
+    expect(carte.couvertureUrl).toBe('https://exemple/couv.jpg');
+    expect(carte.nbPages).toBe(320);
+  });
+
+  it('n-ECRASE JAMAIS ce que la fiche retenue sait deja', () => {
+    const liste = [
+      fiche('gb:1', { editeur: 'Albin Michel', isbn13: '9782226052575' }),
+      fiche('gb:2', { editeur: 'France Loisirs', isbn13: '9782744131929' }),
+    ];
+    const [carte] = fusionnerDoublons(liste, 'les fourmis');
+    expect(carte.editeur).toBe('Albin Michel');
+    expect(carte.isbn13).toBe('9782226052575');
+  });
+
+  it('garde TOUTES les cles fusionnees, pour ne pas perdre le marquage', () => {
+    // Un livre suivi sous « gb:2 » doit rester marque meme si c'est « gb:1 »
+    // qui a ete retenue pour l-affichage.
+    const liste = [fiche('gb:1'), fiche('gb:2')];
+    expect(fusionnerDoublons(liste, 'les fourmis')[0].clesSource).toEqual(['gb:1', 'gb:2']);
+  });
+
+  it('est IDEMPOTENTE : refondre une liste deja fondue ne perd aucune cle', () => {
+    // L-ecran refond la liste entiere a chaque page chargee.
+    const une = fusionnerDoublons([fiche('gb:1'), fiche('gb:2')], 'les fourmis');
+    const deux = fusionnerDoublons([...une, fiche('gb:3')], 'les fourmis');
+    expect(deux).toHaveLength(1);
+    expect(deux[0].clesSource).toEqual(['gb:1', 'gb:2', 'gb:3']);
+  });
+
+  it('rapproche « Emile Zola » et « Zola, Emile » (correction 3)', () => {
+    /*
+     * Mesure du 2026-08-27 sur « germinal », trois pages : le meme roman se
+     * presentait sous « emile zola » (28 fiches) et « Zola, Emile » (3), et
+     * donnait DEUX cartes. La cle de regroupement de la recherche trie les
+     * mots du nom ; l-empreinte d-oeuvre, elle, n-a pas bouge (elle est ecrite
+     * en base).
+     */
+    const liste = [
+      fiche('gb:1', { titre: 'Germinal', auteurs: ['Emile Zola'] }),
+      fiche('gb:2', { titre: 'Germinal', auteurs: ['Zola, Emile'] }),
+    ];
+    expect(fusionnerDoublons(liste, 'germinal')).toHaveLength(1);
+  });
+
+  it('ne rapproche PAS une translitteration, faute de lettre commune', () => {
+    // « Эмиль Золя » ne partage rien avec « Emile Zola » : les rapprocher
+    // demanderait une regle qu-on ne sait pas ecrire sans risque.
+    const liste = [
+      fiche('gb:1', { titre: 'Germinal', auteurs: ['Emile Zola'] }),
+      fiche('gb:2', { titre: 'Germinal', auteurs: ['Эмиль Золя'] }),
+    ];
+    expect(fusionnerDoublons(liste, 'germinal')).toHaveLength(2);
+  });
+
+  it('NE FUSIONNE PAS deux livres homonymes d-auteurs differents', () => {
+    // « Les fourmis » de Werber et le documentaire jeunesse de Stephanie Ledu
+    // portent le meme titre : les confondre EFFACERAIT un livre.
+    const liste = [fiche('gb:1'), fiche('gb:2', { auteurs: ['Stéphanie Ledu'] })];
+    expect(fusionnerDoublons(liste, 'les fourmis')).toHaveLength(2);
+  });
+
+  it('laisse seule une fiche sans auteur plutot que d-aspirer les autres', () => {
+    const liste = [fiche('gb:1'), fiche('gb:2', { auteurs: [] }), fiche('gb:3', { auteurs: [] })];
+    expect(fusionnerDoublons(liste, 'les fourmis')).toHaveLength(3);
+  });
+
+  it('retient la fiche la MIEUX CLASSEE, pas la premiere arrivee', () => {
+    const liste = [
+      fiche('gb:essai', { titre: 'Les Fourmis', sousTitre: 'analyse de l-oeuvre' }),
+      fiche('gb:roman'),
+    ];
+    expect(fusionnerDoublons(liste, 'les fourmis')[0].cleSource).toBe('gb:roman');
+  });
+
+  it('garde l-ordre d-arrivee des livres, pas seulement des fiches', () => {
+    const liste = [
+      fiche('gb:a', { auteurs: ['Stéphanie Ledu'] }),
+      fiche('gb:b'),
+      fiche('gb:c', { auteurs: ['Stéphanie Ledu'] }),
+    ];
+    expect(fusionnerDoublons(liste, 'les fourmis').map((r) => r.cleSource))
+      .toEqual(['gb:a', 'gb:b']);
+  });
+
+  it('supporte une liste vide ou absente', () => {
+    expect(fusionnerDoublons([], 'x')).toEqual([]);
+    expect(fusionnerDoublons(null, 'x')).toEqual([]);
   });
 });

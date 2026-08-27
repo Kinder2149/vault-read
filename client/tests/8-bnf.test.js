@@ -49,6 +49,15 @@ const LES_FOURMIS = notice({
   isbn: '2-226-05257-7',
 });
 
+/* Le meme livre que celui rendu par Google dans les cas de la tranche 4. */
+const NOTICE_GERMINAL = reponseSru([notice({
+  titre: 'Germinal / Émile Zola',
+  auteur: 'Zola, Émile (1840-1902). Auteur du texte',
+  date: '1885',
+  editeur: 'Charpentier (Paris)',
+  isbn: '2-07-036939-6',
+})]);
+
 beforeEach(() => { faux.clear(); vi.resetModules(); });
 
 describe('Convertir un ISBN-13 en ISBN-10', () => {
@@ -182,8 +191,185 @@ describe('La BnF prend le relais quand Google tombe', () => {
     vi.unstubAllGlobals();
   });
 
-  it('quand Google repond, la BnF n-est PAS appelee', async () => {
-    // Sa pertinence est moins bonne : elle ne doit jamais passer devant.
+  it('meme quand Google repond, la BnF ne DECOUVRE jamais — elle complete', async () => {
+    /*
+     * REGLE CHANGEE EN TRANCHE 4, et c-est la regle de remplacement qu-on
+     * protege ici. La BnF etait appelee UNIQUEMENT quand Google tombait ; elle
+     * part desormais a chaque recherche, parce qu-elle porte les ISBN et les
+     * editeurs qui manquent aux fiches de Google — et l-ISBN est ce qui ouvre
+     * la couverture Open Library (retour d-usage 122).
+     *
+     * Ce qui n-a PAS change, et ne doit pas changer : sa pertinence en
+     * decouverte est mauvaise. Ses notices completent les resultats de Google,
+     * elles n-entrent jamais dans la liste par elles-memes.
+     */
+    const appels = [];
+    vi.stubGlobal('fetch', async (url) => {
+      appels.push(String(url));
+      if (String(url).includes('bnf.fr')) return new Response(NOTICE_GERMINAL, { status: 200 });
+      return new Response(JSON.stringify({
+        items: [{ id: 'v1', volumeInfo: { title: 'Germinal', authors: ['Émile Zola'] } }],
+      }), { status: 200 });
+    });
+
+    const books = await import('../src/books.js');
+    const r = await books.rechercher('germinal', 'titre');
+
+    // Un seul resultat, celui de Google : rien n-est venu s-ajouter.
+    expect(r.resultats).toHaveLength(1);
+    expect(r.resultats[0].source).toBe('google');
+    // Mais la BnF a bien ete consultee, en meme temps.
+    expect(appels.some((u) => u.includes('bnf.fr'))).toBe(true);
+    vi.unstubAllGlobals();
+  });
+});
+
+describe('La BnF comble ce qui manque a Google (tranche 4)', () => {
+  /*
+   * Retour d-usage 122 : « les couvertures ne s-affichent que tres peu dans la
+   * recherche, alors qu-en cherchant une autre edition on trouve la bonne ».
+   * Cause : la couverture de repli Open Library se demande PAR ISBN, et les
+   * volumes rendus par `intitle:` chez Google n-en portent souvent aucun.
+   * L-ecran des editions, lui, passe par la BnF, qui en donne toujours.
+   */
+  const volumeGoogle = (extra = {}) => ({
+    cleSource: 'gb:1',
+    source: 'google',
+    titre: 'Germinal',
+    sousTitre: null,
+    auteurs: ['Émile Zola'],
+    annee: null,
+    datePublication: null,
+    couvertureUrl: null,
+    resume: null,
+    categories: [],
+    langue: 'fr',
+    isbn13: null,
+    isbn10: null,
+    nbPages: null,
+    editeur: null,
+    ...extra,
+  });
+
+  const noticeBnf = (extra = {}) => ({
+    cleSource: 'bnf:cb1',
+    source: 'bnf',
+    titre: 'Germinal',
+    auteurs: ['Émile Zola'],
+    annee: '1885',
+    datePublication: '1885',
+    couvertureUrl: null,
+    categories: ['Roman'],
+    isbn13: '9782070369393',
+    isbn10: null,
+    nbPages: null,
+    editeur: 'Charpentier',
+    ...extra,
+  });
+
+  it('donne a une fiche nue son ISBN, son editeur et son annee', async () => {
+    const { completerDepuisBnf } = await import('../src/books.js');
+    const [complete] = completerDepuisBnf([volumeGoogle()], [noticeBnf()]);
+    expect(complete.isbn13).toBe('9782070369393');
+    expect(complete.editeur).toBe('Charpentier');
+    expect(complete.annee).toBe('1885');
+  });
+
+  it('l-ISBN ainsi trouve ouvre la couverture, sans requete de plus', async () => {
+    // C-est tout l-objet de la tranche : une adresse d-image, pas un appel.
+    const { completerDepuisBnf, avecCouvertureDeRepli } = await import('../src/books.js');
+    const [complete] = completerDepuisBnf([volumeGoogle()], [noticeBnf()]);
+    expect(avecCouvertureDeRepli(complete).couvertureUrl).toContain('9782070369393');
+  });
+
+  it('n-ECRASE JAMAIS ce que Google a deja dit', async () => {
+    const { completerDepuisBnf } = await import('../src/books.js');
+    const [complete] = completerDepuisBnf(
+      [volumeGoogle({ editeur: 'Gallimard', isbn13: '9782070612888' })],
+      [noticeBnf()],
+    );
+    expect(complete.editeur).toBe('Gallimard');
+    expect(complete.isbn13).toBe('9782070612888');
+  });
+
+  it('n-AJOUTE aucune notice sans correspondance', async () => {
+    // Sa pertinence en decouverte est mauvaise : elle complete, elle ne
+    // propose pas.
+    const { completerDepuisBnf } = await import('../src/books.js');
+    const sortie = completerDepuisBnf(
+      [volumeGoogle()],
+      [noticeBnf(), noticeBnf({ cleSource: 'bnf:cb2', titre: 'Revue de Lormont', auteurs: ['Anonyme'] })],
+    );
+    expect(sortie).toHaveLength(1);
+    expect(sortie[0].source).toBe('google');
+  });
+
+  it('ne rapproche pas deux livres d-auteurs differents', async () => {
+    const { completerDepuisBnf } = await import('../src/books.js');
+    const [complete] = completerDepuisBnf(
+      [volumeGoogle()],
+      [noticeBnf({ auteurs: ['Stéphanie Ledu'] })],
+    );
+    expect(complete.editeur).toBeNull();
+  });
+
+  it('laisse la recherche intacte quand la BnF ne repond pas', async () => {
+    const { completerDepuisBnf } = await import('../src/books.js');
+    const entree = [volumeGoogle()];
+    expect(completerDepuisBnf(entree, [])).toEqual(entree);
+    expect(completerDepuisBnf(entree, null)).toEqual(entree);
+  });
+
+  it('ne fait qu-UN SEUL appel BnF par recherche', async () => {
+    const appels = [];
+    vi.stubGlobal('fetch', async (url) => {
+      appels.push(String(url));
+      if (String(url).includes('bnf.fr')) return new Response(NOTICE_GERMINAL, { status: 200 });
+      return new Response(JSON.stringify({
+        items: [{ id: 'v1', volumeInfo: { title: 'Germinal', authors: ['Émile Zola'] } }],
+      }), { status: 200 });
+    });
+
+    const books = await import('../src/books.js');
+    await books.rechercher('germinal', 'titre');
+
+    expect(appels.filter((u) => u.includes('bnf.fr'))).toHaveLength(1);
+    vi.unstubAllGlobals();
+  });
+
+  it('DE BOUT EN BOUT : une fiche Google nue ressort avec ISBN, editeur et couverture', async () => {
+    /*
+     * Le parcours complet du retour d-usage 122, sans reseau reel : Google rend
+     * un volume sans ISBN, sans editeur et sans image — le cas le plus courant
+     * de `intitle:` —, la BnF connait le livre, et la carte finit illustree.
+     */
+    vi.stubGlobal('fetch', async (url) => {
+      if (String(url).includes('bnf.fr')) return new Response(NOTICE_GERMINAL, { status: 200 });
+      return new Response(JSON.stringify({
+        items: [{ id: 'v1', volumeInfo: { title: 'Germinal', authors: ['Émile Zola'] } }],
+      }), { status: 200 });
+    });
+
+    const books = await import('../src/books.js');
+    const { resultats } = await books.rechercher('germinal', 'titre');
+
+    expect(resultats).toHaveLength(1);
+    /*
+     * ISBN-10 et non 13 : la BnF indexe en ISBN-10 les livres anterieurs a
+     * 2007, et c-est le cas le plus frequent pour les classiques. La couverture
+     * de repli accepte les deux formes, c-est ce qui compte.
+     */
+    expect(resultats[0].isbn10).toBe('2070369396');
+    expect(resultats[0].editeur).toBe('Charpentier');
+    expect(resultats[0].annee).toBe('1885');
+    // La couverture arrive par l-ISBN, sans une requete de donnees de plus.
+    expect(resultats[0].couvertureUrl).toContain('2070369396');
+    vi.unstubAllGlobals();
+  });
+
+  it('ne consulte PAS la BnF pour une recherche par ISBN', async () => {
+    // Un ISBN designe une edition precise : il n-y a rien a completer, et le
+    // chemin ISBN a deja ses propres replis.
     const appels = [];
     vi.stubGlobal('fetch', async (url) => {
       appels.push(String(url));
@@ -193,9 +379,8 @@ describe('La BnF prend le relais quand Google tombe', () => {
     });
 
     const books = await import('../src/books.js');
-    const r = await books.rechercher('germinal', 'titre');
+    await books.rechercher('9782070369393', 'isbn');
 
-    expect(r.resultats[0].source).toBe('google');
     expect(appels.some((u) => u.includes('bnf.fr'))).toBe(false);
     vi.unstubAllGlobals();
   });

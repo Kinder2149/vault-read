@@ -206,9 +206,28 @@ async function chercher(requete, options = {}, page = 0) {
   return donnees.items.map(normaliserVolume);
 }
 
-/** @returns {Promise<ResultatRecherche[]>} */
-export function rechercherParTitre(texte, page = 0) {
-  return chercher(`intitle:${texte}`, { langRestrict: 'fr' }, page);
+/*
+ * §2.1 s'enrichit : un AUTEUR facultatif en plus du titre (correction 1).
+ *
+ * Google combine `intitle:` et `inauthor:` dans la meme requete, et c'est ce
+ * qui repond aux titres homonymes. Mesure du 2026-08-27, quatre cas sur
+ * quatre, le bon livre en PREMIER resultat :
+ *   « les fourmis » + « werber »          -> Les Fourmis, Bernard Werber
+ *   « le nom de la rose » + « eco »       -> Le nom de la rose, Umberto Eco
+ *   « game of thrones » + « martin »      -> A Game of Thrones, G. R. R. Martin
+ *   « la horde du contrevent » + « damasio » -> La horde du contrevent, Damasio
+ *
+ * L'auteur va entre guillemets, le titre non : c'est exactement ce qui a ete
+ * mesure. Mettre le TITRE entre guillemets a ete teste puis ecarte — sur
+ * « la quete d ewilan », l'apostrophe manquante fait tomber le resultat a
+ * ZERO, alors que sans guillemets Google retrouve les sept tomes.
+ *
+ * @returns {Promise<ResultatRecherche[]>}
+ */
+export function rechercherParTitre(texte, page = 0, auteur = '') {
+  const precise = String(auteur || '').trim();
+  const requete = precise ? `intitle:${texte} inauthor:"${precise}"` : `intitle:${texte}`;
+  return chercher(requete, { langRestrict: 'fr' }, page);
 }
 
 /** @returns {Promise<ResultatRecherche[]>} */

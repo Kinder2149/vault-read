@@ -356,6 +356,13 @@ button { font: inherit; color: inherit; }
 }
 
 /* --- Écran Recherche (tranche 1) ------------------------------------------ */
+/*
+ * Un ecran garde en vie mais hors de vue (tranche 3). `display: none` et non
+ * `visibility` ou une position hors ecran : il ne doit occuper AUCUNE hauteur,
+ * sans quoi la page defilerait dans le vide sous l'onglet affiche.
+ */
+.ecran--masque { display: none; }
+
 .recherche { display: grid; gap: 1rem; }
 .recherche__barre { display: grid; gap: .7rem; }
 
@@ -395,6 +402,14 @@ button { font: inherit; color: inherit; }
   color: var(--muted);
   cursor: pointer;
 }
+
+/*
+ * Le champ auteur, facultatif : plus petit et plus discret que le titre, pour
+ * qu-il se lise comme une precision et non comme une seconde question.
+ */
+.champ--precision { margin-top: .5rem; background: none; }
+.champ--precision .champ__saisie { padding: .55rem 0; font-size: .92rem; color: var(--muted); }
+.champ--precision .champ__saisie:focus { color: var(--text); }
 
 /* Sélecteur segmenté Titre | Auteur | ISBN */
 /* Colonnes deduites du nombre d'entrees : le selecteur sert a 3 modes de

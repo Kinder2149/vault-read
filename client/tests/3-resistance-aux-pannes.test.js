@@ -61,7 +61,14 @@ function reseau(reponses) {
   vi.stubGlobal('fetch', (url) => {
     appels.push(String(url));
     const suite = typeof reponses === 'function' ? reponses(appels.length, String(url)) : reponses;
-    return Promise.resolve(suite);
+    /*
+     * `clone()` : un meme objet Response passe en constante ne peut etre LU
+     * qu-une fois (« Body has already been read »). Tant qu-une recherche
+     * n-appelait qu-une source, cela ne se voyait pas ; depuis que la BnF part
+     * en meme temps que Google (tranche 4), deux appels se partagent la meme
+     * reponse de test.
+     */
+    return Promise.resolve(suite instanceof Response ? suite.clone() : suite);
   });
 }
 
@@ -380,5 +387,82 @@ describe('Le cache survit a la fermeture de l-application', () => {
     const apres = appels.length;
     await books.rechercher('zola', 'auteur');
     expect(appels.length).toBeGreaterThan(apres);
+  });
+});
+
+describe('Preciser l-auteur avec le titre (correction 1)', () => {
+  /*
+   * Retour d-usage : « je ne trouve pas un livre plutot connu ». Sur « les
+   * fourmis », dix livres portent exactement ce titre — le roman de Werber et
+   * neuf documentaires jeunesse. Aucun signal ne permet de deviner lequel est
+   * voulu ; l-application ne permettait pas non plus de le DIRE.
+   */
+  const vide = () => new Response(JSON.stringify({ items: [] }), { status: 200 });
+  // Une URL rend les espaces en « + » : on relit la requete telle qu-elle a
+  // ete ecrite, pas telle qu-elle voyage.
+  const lisible = (url) => decodeURIComponent(String(url)).replace(/\+/g, ' ');
+
+  it('envoie inauthor: a Google quand l-auteur est precise', async () => {
+    const appels = [];
+    vi.stubGlobal('fetch', async (url) => { appels.push(String(url)); return vide(); });
+
+    const books = await import('../src/books.js');
+    await books.rechercher('les fourmis', 'titre', 0, 'werber');
+
+    const google = appels.find((u) => u.includes('googleapis'));
+    expect(lisible(google)).toContain('intitle:les fourmis');
+    expect(lisible(google)).toContain('inauthor:"werber"');
+    vi.unstubAllGlobals();
+  });
+
+  it('n-envoie RIEN de plus quand l-auteur est vide', async () => {
+    const appels = [];
+    vi.stubGlobal('fetch', async (url) => { appels.push(String(url)); return vide(); });
+
+    const books = await import('../src/books.js');
+    await books.rechercher('les fourmis', 'titre');
+
+    const google = appels.find((u) => u.includes('googleapis'));
+    expect(lisible(google)).not.toContain('inauthor');
+    vi.unstubAllGlobals();
+  });
+
+  it('ne SERT PAS la reponse sans auteur a une recherche avec auteur', async () => {
+    /*
+     * Le piege du cache : « les fourmis » et « les fourmis de Werber » sont
+     * deux questions differentes. Servir la premiere reponse pour la seconde
+     * annulerait tout l-interet du champ.
+     */
+    let n = 0;
+    vi.stubGlobal('fetch', async (url) => {
+      if (String(url).includes('googleapis')) n += 1;
+      return vide();
+    });
+
+    const books = await import('../src/books.js');
+    await books.rechercher('les fourmis', 'titre');
+    const avant = n;
+    await books.rechercher('les fourmis', 'titre', 0, 'werber');
+
+    expect(n).toBeGreaterThan(avant);
+    vi.unstubAllGlobals();
+  });
+
+  it('la meme question deux fois ne coute qu-un appel', async () => {
+    let n = 0;
+    vi.stubGlobal('fetch', async (url) => {
+      if (String(url).includes('googleapis')) n += 1;
+      return new Response(JSON.stringify({
+        items: [{ id: 'v1', volumeInfo: { title: 'Les Fourmis', authors: ['Bernard Werber'] } }],
+      }), { status: 200 });
+    });
+
+    const books = await import('../src/books.js');
+    await books.rechercher('les fourmis', 'titre', 0, 'werber');
+    const avant = n;
+    await books.rechercher('les fourmis', 'titre', 0, 'werber');
+
+    expect(n).toBe(avant);
+    vi.unstubAllGlobals();
   });
 });

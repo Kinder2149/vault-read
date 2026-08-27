@@ -11,12 +11,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   rechercherAvecEtat, identifierResultat, getSuggestions, scanDisponible, scannerIsbn,
+  fusionnerResultats,
   getHistoriqueRecherches, effacerHistoriqueRecherches,
   creerOeuvreManuelle, setStatut,
 } from '../api.js';
 import { LIBELLES, STATUTS, classeStatut, ageLisible } from '../status.js';
 import { grouperParAuteur } from '../auteurs.js';
-import { separerLesTomes, serieAConfirmer, trierResultats, TRIS } from '../tomes.js';
+import { organiserLEcran, serieAConfirmer, trierResultats, TRIS } from '../tomes.js';
 import { notify } from '../notify.js';
 import SearchBar from '../components/SearchBar.jsx';
 import BookCard from '../components/BookCard.jsx';
@@ -33,7 +34,7 @@ import Icon from '../components/Icon.jsx';
  */
 const MAX_PAGES_AUTO = 5;
 
-export default function Recherche({ editionsSuivies, onSuivre, onChangement }) {
+export default function Recherche({ actif = true, editionsSuivies, onSuivre, onChangement }) {
   const [mode, setMode] = useState('titre');
   const [resultats, setResultats] = useState([]);
   const [etat, setEtat] = useState('vide'); // vide|charge|fait|erreur
@@ -85,13 +86,27 @@ export default function Recherche({ editionsSuivies, onSuivre, onChangement }) {
    * donc l'ordre choisi, tandis que les TOMES gardent le leur — un tome 3 doit
    * rester entre le 2 et le 4, c'est toute la raison d'etre de ce bloc.
    */
-  const triees = useMemo(() => trierResultats(resultats, tri), [resultats, tri]);
+  /*
+   * Le mode Auteur ne passe PAS de requete : la comparer aux titres n'aurait
+   * aucun sens — on cherche une bibliographie, pas un titre — et c'est le
+   * regroupement par ecrivain qui decide de l'ordre. `trierResultats` rend
+   * alors la liste inchangee, exactement comme avant la tranche 1.
+   */
+  const triees = useMemo(
+    () => trierResultats(resultats, tri, mode === 'auteur' ? '' : derniereRequete),
+    [resultats, tri, mode, derniereRequete],
+  );
 
-  const serie = useMemo(
+  /*
+   * L'ECRAN EST UNE SUITE DE BLOCS, plus un bloc « serie » suivi du reste
+   * (correction 2). Chaque serie porte son nom et se place selon sa
+   * pertinence : elle ne passe plus devant tout par principe.
+   */
+  const blocs = useMemo(
     () => (mode !== 'auteur' && triees.length > 0
-      ? separerLesTomes(triees)
-      : { tomes: [], autres: triees }),
-    [mode, triees],
+      ? organiserLEcran(triees, derniereRequete)
+      : [{ type: 'livres', livres: triees }]),
+    [mode, triees, derniereRequete],
   );
 
   const groupes = useMemo(
@@ -109,6 +124,14 @@ export default function Recherche({ editionsSuivies, onSuivre, onChangement }) {
    * On charge donc la suite TOUT SEUL quand le bas de la liste approche.
    */
   const sequence = useRef(0);
+  /*
+   * Miroir des resultats affiches. `confirmerLaSerie` est construite une fois
+   * pour toutes (elle ne depend de rien) et ne peut donc pas lire l'etat
+   * courant : sans ce miroir, elle refondrait la liste telle qu'elle etait au
+   * montage de l'ecran, c'est-a-dire vide.
+   */
+  const resultatsRef = useRef([]);
+  useEffect(() => { resultatsRef.current = resultats; }, [resultats]);
   // Ce qu'il faut rejouer quand l'utilisateur touche « Reessayer ».
   const derniere = useRef(null);
   const ouvrirRef = useRef(null);
@@ -135,13 +158,13 @@ export default function Recherche({ editionsSuivies, onSuivre, onChangement }) {
     setTri('pertinence');
   }, []);
 
-  const lancer = useCallback(async (texte, modeCourant) => {
+  const lancer = useCallback(async (texte, modeCourant, auteur = '') => {
     const seq = ++sequence.current;
-    derniere.current = { texte, mode: modeCourant };
+    derniere.current = { texte, mode: modeCourant, auteur };
     setDerniereRequete(texte);
     setEtat('charge');
     try {
-      const { resultats: trouves, ancien, pose } = await rechercherAvecEtat(texte, modeCourant);
+      const { resultats: trouves, ancien, pose, nbSource } = await rechercherAvecEtat(texte, modeCourant, 0, auteur);
       if (seq !== sequence.current) return;   // une frappe plus récente a gagné
       setResultats(trouves);
       setPage(0);
@@ -150,7 +173,11 @@ export default function Recherche({ editionsSuivies, onSuivre, onChangement }) {
        * annonce jusqu'a 300 resultats. On ne propose « Voir plus » que dans ce
        * cas, et jamais en mode ISBN — un ISBN designe UN livre.
        */
-      setEncoreDesResultats(trouves.length >= 20 && modeCourant !== 'isbn');
+      /*
+       * On compte ce que la SOURCE a rendu, pas ce qui s'affiche : depuis la
+       * tranche 2, une page pleine de 20 volumes peut ne donner que 6 cartes.
+       */
+      setEncoreDesResultats(nbSource >= 20 && modeCourant !== 'isbn');
       setPoseArchive(ancien ? pose : null);
       setEtat('fait');
       relireHistorique();
@@ -162,8 +189,8 @@ export default function Recherche({ editionsSuivies, onSuivre, onChangement }) {
        * serie. Sans cela, le bloc « La serie, dans l'ordre » ne surgissait
        * qu'apres deux defilements, en reorganisant l'ecran sous les yeux.
        */
-      if (trouves.length >= 20 && modeCourant !== 'isbn' && serieAConfirmer(trouves)) {
-        void confirmerLaSerie(texte, modeCourant, seq);
+      if (nbSource >= 20 && modeCourant !== 'isbn' && serieAConfirmer(trouves)) {
+        void confirmerLaSerie(texte, modeCourant, seq, auteur);
       }
     } catch (e) {
       if (seq !== sequence.current) return;
@@ -205,7 +232,9 @@ export default function Recherche({ editionsSuivies, onSuivre, onChangement }) {
     if (!isbn) { if (raison) notify(raison); return; }
 
     setMode('isbn');
-    derniere.current = { texte: isbn, mode: 'isbn' };
+    derniere.current = { texte: isbn, mode: 'isbn', auteur: '' };
+    // Sans cela, le tri comparerait les resultats du scan au TEXTE PRECEDENT.
+    setDerniereRequete(isbn);
     const seq = ++sequence.current;
     setEtat('charge');
     try {
@@ -240,12 +269,16 @@ export default function Recherche({ editionsSuivies, onSuivre, onChangement }) {
     setChargeSuite(true);
     try {
       const suivante = page + 1;
-      const { resultats: encore } = await rechercherAvecEtat(d.texte, d.mode, suivante);
-      const connus = new Set(resultats.map((r) => r.cleSource));
-      const nouveaux = encore.filter((r) => !connus.has(r.cleSource));
-      setResultats((avant) => [...avant, ...nouveaux]);
+      const { resultats: encore, nbSource } = await rechercherAvecEtat(d.texte, d.mode, suivante, d.auteur);
+      /*
+       * On REFOND la liste entiere, on ne se contente plus d'ecarter les cles
+       * deja vues (tranche 2). La meilleure fiche d'un livre arrive souvent en
+       * page 2 alors que la pauvre est deja affichee : l'ecarter comme doublon
+       * perdrait justement l'editeur et la couverture qu'on attendait.
+       */
+      setResultats(await fusionnerResultats([...resultats, ...encore], d.texte));
       setPage(suivante);
-      setEncoreDesResultats(encore.length >= 20);
+      setEncoreDesResultats(nbSource >= 20);
     } catch (e) {
       notify(e.message);
     } finally {
@@ -272,7 +305,9 @@ export default function Recherche({ editionsSuivies, onSuivre, onChangement }) {
    * bouton — au-dela, continuer devient un choix.
    */
   useEffect(() => {
-    if (!encoreDesResultats || page + 1 >= MAX_PAGES_AUTO) return undefined;
+    // Masque, l'ecran ne doit RIEN charger : le defilement qu'il verrait est
+    // celui d'un autre onglet.
+    if (!actif || !encoreDesResultats || page + 1 >= MAX_PAGES_AUTO) return undefined;
 
     const regarder = () => {
       const bas = document.documentElement.scrollHeight - window.innerHeight - window.scrollY;
@@ -283,7 +318,25 @@ export default function Recherche({ editionsSuivies, onSuivre, onChangement }) {
     // on regarde donc AUSSI tout de suite.
     regarder();
     return () => window.removeEventListener('scroll', regarder);
-  }, [encoreDesResultats, page, chargerLaSuite]);
+  }, [actif, encoreDesResultats, page, chargerLaSuite]);
+
+  /*
+   * RETROUVER SA PLACE. Masquer l'ecran le fait sortir du flux : la page perd
+   * sa hauteur, et le navigateur ramene le defilement a zero. On note donc la
+   * position en continu tant que l'ecran est visible — plutot qu'au moment de
+   * le masquer, ou il est deja trop tard — et on la repose au retour.
+   */
+  const defilement = useRef(0);
+  useEffect(() => {
+    if (!actif) return undefined;
+    const noter = () => { defilement.current = window.scrollY; };
+    window.addEventListener('scroll', noter, { passive: true });
+    return () => window.removeEventListener('scroll', noter);
+  }, [actif]);
+
+  useEffect(() => {
+    if (actif && defilement.current) window.scrollTo(0, defilement.current);
+  }, [actif]);
 
   /*
    * Charge la page suivante en silence pour confirmer une serie. Volontairement
@@ -292,16 +345,15 @@ export default function Recherche({ editionsSuivies, onSuivre, onChangement }) {
    * que des livres qui s'ajoutent. Et elle abandonne sans bruit si une frappe
    * plus recente a gagne.
    */
-  const confirmerLaSerie = useCallback(async (texte, modeCourant, seq) => {
+  const confirmerLaSerie = useCallback(async (texte, modeCourant, seq, auteur = '') => {
     try {
-      const { resultats: encore } = await rechercherAvecEtat(texte, modeCourant, 1);
+      const { resultats: encore, nbSource } = await rechercherAvecEtat(texte, modeCourant, 1, auteur);
       if (seq !== sequence.current) return;
-      setResultats((avant) => {
-        const connus = new Set(avant.map((r) => r.cleSource));
-        return [...avant, ...encore.filter((r) => !connus.has(r.cleSource))];
-      });
+      const fondus = await fusionnerResultats([...resultatsRef.current, ...encore], texte);
+      if (seq !== sequence.current) return;
+      setResultats(fondus);
       setPage(1);
-      setEncoreDesResultats(encore.length >= 20);
+      setEncoreDesResultats(nbSource >= 20);
     } catch { /* la confirmation a echoue : le defilement fera le travail */ }
   }, []);
 
@@ -345,6 +397,17 @@ export default function Recherche({ editionsSuivies, onSuivre, onChangement }) {
     }
   }, [onSuivre]);
 
+  /*
+   * Une carte fusionnee porte PLUSIEURS cles de source (tranche 2). Un livre
+   * suivi sous l'une d'elles doit rester marque meme si c'est une autre fiche
+   * du groupe qui a ete retenue pour l'affichage — sinon la coche disparait
+   * et on propose de suivre un livre deja dans la bibliotheque.
+   */
+  const estSuivi = useCallback(
+    (r) => (r.clesSource || [r.cleSource]).some((c) => editionsSuivies.has(c)),
+    [editionsSuivies],
+  );
+
   /* Une seule definition de la carte de resultat : la grille simple et les
      grilles par auteur doivent rester identiques a la virgule pres. */
   const carteResultat = (r, mention) => (
@@ -352,7 +415,7 @@ export default function Recherche({ editionsSuivies, onSuivre, onChangement }) {
       key={r.cleSource}
       resultat={r}
       raison={mention}
-      marque={editionsSuivies.has(r.cleSource)}
+      marque={estSuivi(r)}
       onOuvrir={ouvrir}
       onAppuiLong={() => setCategorieCible(r)}
       onAjoutRapide={ajouterVite}
@@ -390,7 +453,7 @@ export default function Recherche({ editionsSuivies, onSuivre, onChangement }) {
     }
   }, [saisie, onChangement]);
 
-  const dejaSuivi = ouvert ? editionsSuivies.has(ouvert.cleSource) : false;
+  const dejaSuivi = ouvert ? estSuivi(ouvert) : false;
 
   return (
     <section className="recherche">
@@ -419,7 +482,7 @@ export default function Recherche({ editionsSuivies, onSuivre, onChangement }) {
             className="btn btn--large"
             onClick={() => {
               const d = derniere.current;
-              if (d) lancer(d.texte, d.mode);
+              if (d) lancer(d.texte, d.mode, d.auteur);
             }}
           >
             <Icon name="actualiser" size={16} />
@@ -532,7 +595,7 @@ export default function Recherche({ editionsSuivies, onSuivre, onChangement }) {
                 <BookCard
                   key={r.cleSource}
                   resultat={r}
-                  marque={editionsSuivies.has(r.cleSource)}
+                  marque={estSuivi(r)}
                   raison={r.raison}
                   onOuvrir={ouvrir}
                   onAppuiLong={() => setCategorieCible(r)}
@@ -603,24 +666,27 @@ export default function Recherche({ editionsSuivies, onSuivre, onChangement }) {
             </div>
           </div>
         ))
-      ) : serie.tomes.length > 0 ? (
-        <>
-          <h2 className="soustitre soustitre--serre">
-            La série, dans l’ordre
-            <span className="groupe-auteur__compte">{serie.tomes.length} tomes</span>
-          </h2>
-          <div className="grille">
-            {serie.tomes.map((r) => carteResultat(r, `tome ${r.tome}`))}
-          </div>
-          {serie.autres.length > 0 && (
-            <>
-              <h2 className="soustitre">Autres résultats</h2>
-              <div className="grille">{serie.autres.map((r) => carteResultat(r))}</div>
-            </>
-          )}
-        </>
       ) : resultats.length > 0 ? (
-        <div className="grille">{triees.map((r) => carteResultat(r))}</div>
+        /*
+          Chaque serie s'annonce par SON nom (« La Quete d'Ewilan »), et non
+          plus par un « La serie, dans l'ordre » qui melangeait des cycles sans
+          rapport. Les livres isoles qui se suivent forment une seule grille.
+        */
+        blocs.map((b, i) => (b.type === 'serie' ? (
+          <div className="groupe-auteur" key={b.cle}>
+            <h2 className="soustitre soustitre--serre">
+              {b.nom}
+              <span className="groupe-auteur__compte">{b.tomes.length} tomes</span>
+            </h2>
+            <div className="grille">
+              {b.tomes.map((r) => carteResultat(r, `tome ${r.tome}`))}
+            </div>
+          </div>
+        ) : (
+          <div className="grille" key={`livres-${i}`}>
+            {b.livres.map((r) => carteResultat(r))}
+          </div>
+        )))
       ) : null}
 
       {chargeSuite && <p className="hint">Encore quelques livres…</p>}
@@ -637,7 +703,15 @@ export default function Recherche({ editionsSuivies, onSuivre, onChangement }) {
         </button>
       )}
 
-      {saisie && (
+      {/*
+        LES SURCOUCHES NE SURVIVENT PAS AU MASQUAGE (tranche 3). L'ecran reste
+        monte, donc une fiche ouverte resterait dans le document — invisible,
+        mais bien la. Le bouton retour d'Android cherche `.sheet` pour savoir
+        s'il y a quelque chose a fermer : il aurait ferme une fenetre que
+        personne ne voit, au lieu de revenir a l'accueil.
+        L'etat, lui, est conserve : revenir sur l'onglet rouvre la fiche.
+      */}
+      {actif && saisie && (
         <CreationManuelle
           saisie={saisie}
           onChange={(champ, valeur) => setSaisie((v) => ({ ...v, [champ]: valeur }))}
@@ -651,7 +725,7 @@ export default function Recherche({ editionsSuivies, onSuivre, onChangement }) {
         AJOUTE le livre et lui pose le statut d'un seul geste. Le detour par la
         fiche n'etait pas une etape utile, c'etait un passage oblige.
       */}
-      {categorieCible && (
+      {actif && categorieCible && (
         <MenuCategorie
           titre={categorieCible.titre}
           onFermer={() => setCategorieCible(null)}
@@ -659,7 +733,7 @@ export default function Recherche({ editionsSuivies, onSuivre, onChangement }) {
         />
       )}
 
-      {ouvert && (
+      {actif && ouvert && (
         <FicheResultat
           resultat={ouvert}
           identite={identite}

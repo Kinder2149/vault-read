@@ -29,6 +29,28 @@ const PLACEHOLDERS = {
 
 export default function SearchBar({ mode, onChangerMode, onRechercher, onVider, onScanner, scanPossible }) {
   const [valeur, setValeur] = useState('');
+  /*
+   * L'AUTEUR, FACULTATIF (correction 1).
+   *
+   * Retour d'usage : « je cherche un livre plutot connu et je ne le trouve
+   * pas ». Sur « les fourmis », dix livres portent EXACTEMENT ce titre — le
+   * roman de Werber et neuf documentaires jeunesse. Aucun signal disponible ne
+   * permet de deviner lequel est voulu : ni popularite (arbitrage 16), ni
+   * nombre d'editions sur une seule page.
+   *
+   * On a longtemps essaye de DEVINER. Le manque etait ailleurs : l'application
+   * ne permettait pas de le DIRE. Les modes Titre, Auteur et ISBN s'excluent,
+   * donc « les fourmis DE WERBER » etait insaisissable.
+   *
+   * Mesure du 2026-08-27, quatre cas sur quatre : titre + auteur rend le bon
+   * livre en premier resultat — « les fourmis » + « werber », « le nom de la
+   * rose » + « eco », « game of thrones » + « martin », « la horde du
+   * contrevent » + « damasio ».
+   *
+   * Il n'apparait qu'en mode Titre : le mode Auteur cherche deja par auteur, et
+   * un ISBN designe un livre unique.
+   */
+  const [auteur, setAuteur] = useState('');
   const rappel = useRef(onRechercher);
   rappel.current = onRechercher;
   const rappelVide = useRef(onVider);
@@ -47,15 +69,21 @@ export default function SearchBar({ mode, onChangerMode, onRechercher, onVider, 
 
     if (mode === 'isbn') {
       const chiffres = texte.replace(/[^0-9Xx]/g, '');
-      if (chiffres.length === 10 || chiffres.length === 13) rappel.current(chiffres, 'isbn');
+      if (chiffres.length === 10 || chiffres.length === 13) rappel.current(chiffres, 'isbn', '');
       return undefined;
     }
 
     if (texte.length < MINIMUM_CARACTERES) return undefined;
 
-    const minuteur = setTimeout(() => rappel.current(texte, mode), DEBOUNCE_MS);
+    /*
+     * L'auteur entre dans les dependances : le preciser APRES avoir tape le
+     * titre doit relancer la recherche, sinon le champ ne servirait a rien
+     * tant qu'on ne retouche pas le titre.
+     */
+    const precision = mode === 'titre' ? auteur.trim() : '';
+    const minuteur = setTimeout(() => rappel.current(texte, mode, precision), DEBOUNCE_MS);
     return () => clearTimeout(minuteur);
-  }, [valeur, mode]);
+  }, [valeur, auteur, mode]);
 
   return (
     <div className="recherche__barre">
@@ -94,6 +122,35 @@ export default function SearchBar({ mode, onChangerMode, onRechercher, onVider, 
           </button>
         ) : null}
       </div>
+
+      {/*
+        L'auteur, facultatif et discret : il ne s'affiche qu'en mode Titre, et
+        rien n'oblige a le remplir. C'est la reponse aux titres homonymes, que
+        ni le classement ni la fusion ne savent departager.
+      */}
+      {mode === 'titre' ? (
+        <div className="champ champ--precision">
+          <input
+            className="champ__saisie"
+            type="search"
+            value={auteur}
+            onChange={(e) => setAuteur(e.target.value)}
+            placeholder="Son auteur (facultatif)"
+            aria-label="Auteur du livre, facultatif"
+            autoComplete="off"
+          />
+          {auteur ? (
+            <button
+              type="button"
+              className="champ__vider"
+              onClick={() => setAuteur('')}
+              aria-label="Vider l’auteur"
+            >
+              <Icon name="fermer" size={18} />
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       {/* Changer de mode relance la recherche sans retaper : le useEffect
           ci-dessus dépend aussi de `mode`. */}
