@@ -466,3 +466,116 @@ describe('Preciser l-auteur avec le titre (correction 1)', () => {
     vi.unstubAllGlobals();
   });
 });
+
+/*
+ * LA NOTORIETE SURVIT AUX PANNES D'OPEN LIBRARY (mission V2, M3)
+ *
+ * Open Library n'a ni cle ni quota, mais aucun engagement de service : mesure
+ * du 2026-08-28, sur une fenetre degradee, 2 reponses sur 12 a une requete
+ * triviale. Sans cache, le classement d'une recherche dependait donc de
+ * l'humeur du service a la seconde ou l'on tapait — constate au banc d'essai,
+ * ou « game of thrones » etait la seule des sept recherches a ne rien recevoir,
+ * et donc la seule a rester mal classee.
+ */
+describe('La notoriete des oeuvres, et sa resistance', () => {
+  const oeuvresOL = {
+    docs: [
+      { key: '/works/OL1W', title: 'Livre 0', author_name: ['Auteur 0'], readinglog_count: 5000 },
+      { key: '/works/OL2W', title: 'Autre', author_name: ['Quelqu-un'], readinglog_count: 12 },
+    ],
+  };
+
+  /*
+   * CHAQUE VERIFICATION UTILISE SON PROPRE MOT. `books.js` garde un cache
+   * memoire de 30 min (§4.7), et il survit d'une verification a l'autre : en
+   * cherchant « dune » partout, la quatrieme relisait le resultat DEJA CLASSE
+   * de la premiere et passait au vert sans rien exercer. Un mot par cas, et le
+   * cache ne peut plus mentir.
+   */
+
+  /** Aiguillage par source : Google, la BnF et Open Library repondent chacune. */
+  function troisSources({ olEnPanne = false } = {}) {
+    const vus = { google: 0, ol: 0 };
+    reseau((n, url) => {
+      if (url.includes('openlibrary.org/search')) {
+        vus.ol += 1;
+        return olEnPanne ? Promise.reject(new TypeError('coupure')) : ok(oeuvresOL);
+      }
+      if (url.includes('bnf.fr')) return ok({});
+      vus.google += 1;
+      return ok(reponseGoogle(3));
+    });
+    return vus;
+  }
+
+  it('classe les resultats avec le RANG de l-auteur chez Open Library', async () => {
+    troisSources();
+    const books = await import('../src/books.js');
+
+    const { resultats } = await books.rechercher('dune', 'titre');
+    const premier = resultats.find((r) => r.auteurs.includes('Auteur 0'));
+    expect(premier.rangAuteur).toBe(0);
+    expect(premier.lecteurs).toBe(5000);
+    // Un auteur inconnu d'Open Library n'est pas classe — et n'est pas efface.
+    expect(resultats.find((r) => r.auteurs.includes('Auteur 1')).rangAuteur).toBeUndefined();
+  });
+
+  it('N-APPELLE OPEN LIBRARY QU-UNE FOIS pour toutes les pages d-une recherche', async () => {
+    // Sans cache, la page 2 repartait non classee et se rangeait au hasard
+    // parmi des cartes classees : l-ecran se reorganisait au defilement.
+    const vus = troisSources();
+    const books = await import('../src/books.js');
+
+    await books.rechercher('fondation', 'titre', 0);
+    await books.rechercher('fondation', 'titre', 1);
+    expect(vus.google).toBeGreaterThanOrEqual(2);
+    expect(vus.ol).toBe(1);
+  });
+
+  it('RESSORT UNE NOTORIETE PERIMEE quand Open Library ne repond plus', async () => {
+    // Une notoriete de la semaine derniere classe aussi bien que celle
+    // d-aujourd-hui : Martin ecrivait deja « Game of Thrones ».
+    faux.set('notoriete:hyperion', {
+      pose: Date.now() - 30 * 24 * 60 * 60 * 1000,   // largement perimee
+      oeuvres: [{ cleOeuvre: 'ol:OL1W', titre: 'Livre 0', auteurs: ['Auteur 0'], lecteurs: 777 }],
+    });
+    troisSources({ olEnPanne: true });
+    const books = await import('../src/books.js');
+
+    const { resultats } = await books.rechercher('hyperion', 'titre');
+    const premier = resultats.find((r) => r.auteurs.includes('Auteur 0'));
+    expect(premier.rangAuteur).toBe(0);
+    expect(premier.lecteurs).toBe(777);
+  });
+
+  it('une panne d-Open Library ne fait JAMAIS echouer la recherche', async () => {
+    troisSources({ olEnPanne: true });
+    const books = await import('../src/books.js');
+
+    const { resultats } = await books.rechercher('ubik', 'titre');
+    expect(resultats).toHaveLength(3);          // la recherche aboutit
+    expect(resultats.every((r) => r.rangAuteur === undefined)).toBe(true);  // sans ordre
+  });
+
+  it('NE MET PAS EN CACHE une reponse vide', async () => {
+    // Sinon un echec deguise en « rien trouve » empecherait de redemander
+    // pendant sept jours.
+    reseau((n, url) => {
+      if (url.includes('openlibrary.org/search')) return ok({ docs: [] });
+      if (url.includes('bnf.fr')) return ok({});
+      return ok(reponseGoogle(2));
+    });
+    const books = await import('../src/books.js');
+
+    await books.rechercher('solaris', 'titre');
+    expect(faux.has('notoriete:solaris')).toBe(false);
+  });
+
+  it('n-interroge pas Open Library en mode ISBN — rien a classer', async () => {
+    const vus = troisSources();
+    const books = await import('../src/books.js');
+
+    await books.rechercher('9782070368228', 'isbn');
+    expect(vus.ol).toBe(0);
+  });
+});

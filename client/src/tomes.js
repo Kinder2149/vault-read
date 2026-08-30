@@ -345,22 +345,57 @@ function penaliteLongueur(brut, requete) {
 }
 
 /*
- * NOTORIETE — combien d'editions de ce livre existent (correction 4).
+ * NOTORIETE — la place de l'auteur chez Open Library (mission V2, M5).
  *
- * La fusion (tranche 2) rassemble sur une carte toutes les fiches du meme
- * livre : leur nombre est donc deja connu, et c'est la meilleure approximation
- * de notoriete disponible. Aucune source n'expose de popularite (arbitrage 16,
- * confirme) ; le nombre d'editions, lui, est gratuit et parle.
+ * CE QUI A CHANGE, ET POURQUOI LE COMPTE NE SUFFISAIT PAS.
  *
- * Mesure du 2026-08-27 : sur « germinal », le roman de Zola compte 28 fiches
- * et tout le reste au plus 3 ; sur « le nom de la rose », Umberto Eco en
- * compte 8.
+ * Ce signal valait jusqu'ici « combien de fiches Google ont ete fusionnees ».
+ * C'etait un pis-aller assume : aucune source n'exposait de popularite
+ * (arbitrage 16). C'est faux — Open Library en expose une — et le pis-aller
+ * mesurait surtout a quel point Google avait duplique une notice.
  *
- * PLAFONNEE A 24 — soit moins qu'un ecart de correspondance de titre. Un livre
- * tres edite ne doit jamais passer devant un livre qui correspond mieux : la
- * notoriete DEPARTAGE des candidats credibles, elle n'en fabrique pas.
+ * Premiere idee, ECARTEE PAR LA MESURE : utiliser le nombre de lecteurs
+ * d'Open Library. Diagnostic du 2026-08-28 sur « les fourmis » :
+ *
+ *   Les fourmis, Bernard Werber          score 119   36 lecteurs, 1re oeuvre chez OL
+ *   Les fourmis, Stephanie Ledu (jeunesse) score 149    0 lecteur, absente d'OL
+ *
+ * Les trente points d'ecart viennent presque entierement de la COMPLETUDE : la
+ * fiche Google du roman de Werber n'a ni ISBN, ni editeur, ni couverture (15
+ * points) la ou le documentaire jeunesse a tout (35). Or 36 lecteurs, en
+ * valeur absolue, ne rattrapent jamais cela : Open Library est anglophone, et
+ * un auteur francais tres lu en France y compte peu de monde. Un bareme fonde
+ * sur le compte aurait donc marche sur « game of thrones » (13 397 lecteurs)
+ * et echoue sur tout le catalogue francais.
+ *
+ * CE QU'ON RETIENT : LE RANG, PAS LE COMPTE. La question utile n'est pas
+ * « combien de gens ont lu ce livre » mais « cet auteur est-il celui qu'Open
+ * Library considere comme la reponse a cette recherche ». Le rang est
+ * relatif, donc immunise contre le biais anglophone : Werber est 1er sur
+ * « les fourmis » comme Martin est 1er sur « game of thrones ».
+ *
+ * Et c'est le signal qui repond exactement au defaut constate — les essais SUR
+ * une oeuvre passent devant l'oeuvre — parce qu'un essai n'est pas ecrit par
+ * l'auteur de l'oeuvre.
+ *
+ * LE BAREME. 36 points au 1er rang, moins 4 par rang, plancher a 0. Le
+ * plafond de 36 n'est pas rond par hasard : il doit pouvoir renverser un ecart
+ * de COMPLETUDE (35 au maximum, le cas Werber ci-dessus) sans jamais renverser
+ * un ecart de correspondance de titre. La notoriete departage des candidats
+ * credibles ; elle ne fait pas remonter un livre hors sujet.
+ *
+ * REPLI. Sans donnee d'Open Library — source injoignable, ou auteur inconnu
+ * d'elle —, on retombe sur l'ancien compte d'editions. L'absence d'information
+ * n'est pas une preuve d'obscurite, et cela garde le classement d'hier quand
+ * la source est en panne.
  */
+const NOTORIETE_MAX = 36;
+const NOTORIETE_PAS = 4;
+
 function notoriete(r) {
+  if (Number.isInteger(r.rangAuteur)) {
+    return Math.max(NOTORIETE_MAX - r.rangAuteur * NOTORIETE_PAS, 0);
+  }
   const editions = Array.isArray(r.clesSource) ? r.clesSource.length : 1;
   return Math.min((editions - 1) * 6, 24);
 }

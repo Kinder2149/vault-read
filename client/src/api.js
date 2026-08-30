@@ -13,6 +13,7 @@ import { initDb, query } from './db.js';
 import * as store from './store.js';
 import * as books from './books.js';
 import { aujourdhui, progressionDe } from './status.js';
+import { volumeLu } from './statistiques.js';
 import * as scanner from './scanner.js';
 import { appelsDuJour, QUOTA_QUOTIDIEN } from './sources/google.js';
 
@@ -305,13 +306,53 @@ export async function setPosition(oeuvreId, position) {
 }
 
 /** Pages ou minutes gagnees sur les 7 derniers jours, par oeuvre. */
+/* 'YYYY-MM-DD' en heure LOCALE, comme partout dans le projet (§3.3). */
+function enDate(d) {
+  const mois = String(d.getMonth() + 1).padStart(2, '0');
+  const jour = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mois}-${jour}`;
+}
+
+async function gainsDepuis(profileId, depuis) {
+  const lignes = await store.rythmeDepuis(profileId, depuis);
+  return new Map(lignes.map((l) => [l.oeuvreId, Number(l.gain) || 0]));
+}
+
 export async function getRythmeSemaine() {
   const d = new Date();
   d.setDate(d.getDate() - 7);
-  const mois = String(d.getMonth() + 1).padStart(2, '0');
-  const jour = String(d.getDate()).padStart(2, '0');
-  const lignes = await store.rythmeDepuis(await getActiveProfileId(), `${d.getFullYear()}-${mois}-${jour}`);
-  return new Map(lignes.map((l) => [l.oeuvreId, Number(l.gain) || 0]));
+  return gainsDepuis(await getActiveProfileId(), enDate(d));
+}
+
+/*
+ * Ce qui a ete lu sur trois fenetres (mission V2, M2). Trois lectures d'une
+ * table locale : aucun appel reseau, rien a mettre en cache.
+ *
+ * Le compte lui-meme vit dans `store.rythmeDepuis` — UN SEUL domicile, deja
+ * utilise par « Ma lecture ». On ne recompte rien ici : ecrire un second
+ * calcul, meme meilleur, ferait afficher deux chiffres differents pour la
+ * meme semaine sur deux ecrans voisins. Le defaut trouve en construisant cet
+ * ecran — la toute premiere saisie d'un livre ne comptait jamais — a donc ete
+ * corrige la-bas, pas ici.
+ */
+export async function getVolumeLu() {
+  const profileId = await getActiveProfileId();
+  const bibliotheque = await store.getBibliotheque(profileId);
+
+  const ilYa = (jours) => { const d = new Date(); d.setDate(d.getDate() - jours); return enDate(d); };
+  const premierJanvier = `${new Date().getFullYear()}-01-01`;
+
+  const [semaine, mois, annee] = await Promise.all([
+    gainsDepuis(profileId, ilYa(7)),
+    gainsDepuis(profileId, ilYa(30)),
+    gainsDepuis(profileId, premierJanvier),
+  ]);
+
+  return {
+    semaine: volumeLu(bibliotheque, semaine),
+    mois: volumeLu(bibliotheque, mois),
+    annee: volumeLu(bibliotheque, annee),
+  };
 }
 
 /* Une soustraction, pas un appel. Rend l'unite deduite du format actif. */

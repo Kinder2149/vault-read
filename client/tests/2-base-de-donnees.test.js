@@ -415,3 +415,64 @@ describe('Mon avis : une note et un commentaire par livre', () => {
     expect(reste.commentaire).toBe('Mon avis à moi.');
   });
 });
+
+/*
+ * COMPTER LES PAGES LUES (mission V2, M2).
+ *
+ * Ce calcul alimente « Ma lecture » ET les statistiques. Il compte un ECART de
+ * positions, jamais une somme — mais il doit partir du bon endroit, sans quoi
+ * il rend zero dans le cas le plus courant : celui ou l'on note sa page pour
+ * la premiere fois.
+ */
+describe('Pages lues sur une periode', () => {
+  const poser = async (jour, position) => {
+    await store.enregistrerSession(profil, 'ol:OL893414W', jour, position);
+  };
+  const gain = async (depuis) => {
+    const lignes = await store.rythmeDepuis(profil, depuis);
+    return lignes.find((l) => l.oeuvreId === 'ol:OL893414W')?.gain ?? 0;
+  };
+
+  beforeEach(async () => {
+    await store.ajouterOeuvre(profil, resultat(), identite());
+  });
+
+  it('COMPTE LA TOUTE PREMIERE SAISIE — le defaut qui rendait la fonction inutile', async () => {
+    // Une seule ligne dans la fenetre : l-ancienne regle rendait MAX - MIN = 0,
+    // et l-ecran annoncait « 0 page cette semaine » a qui venait d-en lire 150.
+    await poser('2026-08-27', 150);
+    expect(await gain('2026-08-21')).toBe(150);
+  });
+
+  it('part de la derniere position connue AVANT la fenetre', async () => {
+    // Pose page 100 le mois dernier, repris a 150 hier : 50 pages, pas 0.
+    await poser('2026-07-15', 100);
+    await poser('2026-08-27', 150);
+    expect(await gain('2026-08-21')).toBe(50);
+  });
+
+  it('ne compte pas deux fois une position ressaisie le meme jour', async () => {
+    // La cle (profil, oeuvre, jour) l-ecrase : c-est une position, pas un ajout.
+    await poser('2026-08-27', 150);
+    await poser('2026-08-27', 150);
+    expect(await gain('2026-08-21')).toBe(150);
+  });
+
+  it('additionne les progressions successives de la fenetre', async () => {
+    await poser('2026-08-22', 50);
+    await poser('2026-08-24', 120);
+    await poser('2026-08-27', 200);
+    expect(await gain('2026-08-21')).toBe(200);
+  });
+
+  it('ne rend JAMAIS un gain negatif quand on corrige sa position a la baisse', async () => {
+    await poser('2026-07-15', 300);
+    await poser('2026-08-27', 120); // erreur corrigee
+    expect(await gain('2026-08-21')).toBe(0);
+  });
+
+  it('ignore ce qui est hors de la fenetre', async () => {
+    await poser('2026-06-01', 400);
+    expect(await gain('2026-08-21')).toBe(0);
+  });
+});

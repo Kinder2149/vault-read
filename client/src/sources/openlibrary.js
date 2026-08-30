@@ -301,3 +301,120 @@ export async function livreParIsbn(isbn) {
 export function couvertureParIsbn(isbn, taille = 'M') {
   return isbn ? `${COUVERTURES}/b/isbn/${isbn}-${taille}.jpg?default=false` : null;
 }
+
+// ---------------------------------------------------------------------------
+// NOTORIETE D'OEUVRE — Open Library en source d'ORDRE (mission V2, M3)
+// ---------------------------------------------------------------------------
+
+/*
+ * POURQUOI CETTE FONCTION EXISTE.
+ *
+ * Google Books est un catalogue de DOCUMENTS : un carnet de notes « Maison
+ * Targaryen » y est un livre aussi legitime que le roman de Martin. Rien dans
+ * une fiche Google ne dit qu'une oeuvre est connue — et c'est ce qui manquait
+ * au classement. Mesure du 2026-08-28 sur la recherche « game of thrones » :
+ * le roman de Martin arrivait 4e, derriere trois essais SUR la serie, parce
+ * qu'un essai bien edite ressemble davantage a une bonne fiche que l'oeuvre.
+ *
+ * Open Library, elle, indexe des OEUVRES et publie combien de lecteurs les ont
+ * rangees dans leur bibliotheque. C'est l'equivalent exact du `popularity` que
+ * TMDB donne au projet series — et dont ce projet s'etait cru prive
+ * (arbitrage 16, infirme par la mesure).
+ *
+ *   « game of thrones »       -> A Game of Thrones, Martin : 13 397 lecteurs
+ *                                le 2e du classement       :    259 lecteurs
+ *   « les fourmis »           -> Les fourmis, Werber        : en tete
+ *   « le seigneur des anneaux » -> Tolkien, quatre premieres places
+ *
+ * `fields=` EST OBLIGATOIRE ICI, et le piege merite d'etre ecrit.
+ *
+ * `readinglog_count` N'EST PAS rendu par defaut : la reponse standard ne porte
+ * que `edition_count` comme signal de notoriete. Une premiere version de cette
+ * fonction s'en passait — pour la vitesse — et attachait donc scrupuleusement
+ * « 0 lecteur » a tous les livres, sans que rien ne le signale. C'est le banc
+ * d'essai qui l'a montre, pas le code : d'ou son existence.
+ *
+ * Mais la projection doit rester COURTE. Mesure du 2026-08-28, sur les sept
+ * recherches de reference :
+ *   - 6 champs (avec first_publish_year, edition_count) : 348 a 9510 ms, et un
+ *     echec complet ;
+ *   - les 4 champs ci-dessous : mediane 556 ms, pire 4518 ms, zero echec.
+ * On ne demande donc que ce dont on se sert. Ajouter un champ « au cas ou »
+ * se paierait en secondes.
+ */
+const CHAMPS = 'key,title,author_name,readinglog_count';
+
+/*
+ * Budget volontairement plus serre que DELAI_MAX_MS. Cet appel n'apporte QUE
+ * de l'ordre : au-dela de quelques secondes, mieux vaut afficher les resultats
+ * de Google mal classes que faire attendre devant un ecran vide.
+ * 5 s et non 4 : le pire temps mesure est de 4518 ms, sur « game of thrones »
+ * a froid — c'est-a-dire precisement la recherche qui a le plus besoin d'etre
+ * classee. Un budget de 4 s l'aurait coupee. En regime normal l'appel rend en
+ * 556 ms et se termine avant Google, donc il ne coute rien.
+ * Il est facultatif de bout en bout — voir `books.js`.
+ */
+const BUDGET_NOTORIETE_MS = 5000;
+
+/**
+ * Les oeuvres qu'Open Library associe a une recherche, avec leur notoriete.
+ *
+ * @param {string} texte ce que l'utilisateur a tape
+ * @param {number} budgetMs
+ * @returns {Promise<Array<{cleOeuvre: string, titre: string, auteurs: string[],
+ *   lecteurs: number}>>}
+ *   dans l'ordre rendu par Open Library, qui est deja un ordre de pertinence.
+ */
+export async function oeuvresNotoires(texte, budgetMs = BUDGET_NOTORIETE_MS) {
+  const requete = String(texte || '').trim();
+  if (!requete) return [];
+
+  const params = new URLSearchParams({ q: requete, limit: '10', fields: CHAMPS });
+  const chemin = `/search.json?${params.toString()}`;
+
+  /*
+   * UN SEUL REESSAI, ET SEULEMENT SUR COUPURE. Mesure du 2026-08-28 sur huit
+   * recherches jamais faites : cinq repondent en moins de 1,3 s, une met
+   * 9,4 s, et DEUX tombent sur une coupure de connexion — immediatement.
+   *
+   * Ces deux-la se rattrapent pour rien : l'echec est instantane, le reessai
+   * ne coute donc que le second appel. Un delai depasse, lui, n'est JAMAIS
+   * reessaye : il signifie qu'Open Library est lente maintenant, et insister
+   * ne ferait qu'ajouter cinq secondes d'attente devant un ecran vide.
+   * C'est la meme logique que les 503 de Google (§4.7), a l'inverse : la-bas
+   * l'echec revient vite et le reessai est gratuit ; ici seule la coupure a
+   * cette propriete.
+   */
+  let donnees;
+  try {
+    donnees = await olGet(chemin, budgetMs);
+  } catch (e) {
+    if (/ne répond pas/.test(e.message)) throw e;
+    donnees = await olGet(chemin, budgetMs);
+  }
+  if (!donnees || !Array.isArray(donnees.docs)) return [];
+
+  return donnees.docs.map((d) => ({
+    cleOeuvre: d.key ? `ol:${olid(d.key)}` : null,
+    titre: d.title || '',
+    /*
+     * `author_name` melange les translitterations dans la MEME liste (pour
+     * Dune : « Frank Herbert » ET « Френк Герберт »). On les garde toutes :
+     * ici elles servent a RECONNAITRE un auteur, pas a l'afficher, et plus il
+     * y a de graphies connues, mieux le rapprochement fonctionne.
+     */
+    auteurs: Array.isArray(d.author_name) ? d.author_name : [],
+    /*
+     * `readinglog_count` = combien de personnes ont range cette oeuvre dans
+     * leur bibliotheque. C'est la mesure de notoriete la plus large des trois
+     * disponibles (devant `ratings_count`, qui demande un geste de plus, et
+     * `edition_count`, qui mesure surtout l'age du livre).
+     */
+    lecteurs: Number(d.readinglog_count) || 0,
+    /*
+     * Ni annee ni nombre d'editions : ils ne sont pas dans `CHAMPS`, donc pas
+     * rendus. Les demander coute des secondes (voir plus haut) et personne ne
+     * s'en sert ici — l'annee vient de Google, qui la porte deja.
+     */
+  })).filter((o) => o.titre);
+}

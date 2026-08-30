@@ -152,8 +152,17 @@ function normaliser(texte, couperSousTitre) {
  */
 function cleRegroupement(titre, auteurs) {
   const premier = Array.isArray(auteurs) ? auteurs[0] : auteurs;
-  const nom = normaliser(premier, false).split('-').filter(Boolean).sort().join('-');
-  return `grp:${normaliser(titre, true)}|${nom}`;
+  return `grp:${normaliser(titre, true)}|${cleAuteur(premier)}`;
+}
+
+/*
+ * UN NOM D'AUTEUR, reduit a ce qui ne change pas d'une source a l'autre.
+ * Les mots sont TRIES : « emile zola » et « Zola, Emile » donnent la meme cle.
+ * Extrait de `cleRegroupement` pour etre reutilise par la notoriete (M3), qui
+ * doit reconnaitre le meme ecrivain entre Google et Open Library.
+ */
+function cleAuteur(nom) {
+  return normaliser(nom, false).split('-').filter(Boolean).sort().join('-');
 }
 
 /*
@@ -343,6 +352,37 @@ async function rechercherBrut(texte, mode, page = 0, auteur = '') {
     ? interrogerBnf(requete, mode, auteur).catch(() => [])
     : null;
 
+  /*
+   * OPEN LIBRARY PART AUSSI, ET EN MEME TEMPS (mission V2, M3).
+   *
+   * Elle n'apporte ni fiche ni couverture : elle apporte l'ORDRE. Google ne
+   * sait pas dire qu'une oeuvre est connue — d'ou les essais SUR « Game of
+   * Thrones » ranges devant le roman. Open Library indexe des oeuvres et
+   * publie leur nombre de lecteurs : c'est le `popularity` de TMDB, que ce
+   * projet s'etait cru prive (arbitrage 16, infirme par la mesure).
+   *
+   * MEME DISCIPLINE QUE LA BnF :
+   *  - lancee AVANT l'appel Google, pour que les deux attentes se recouvrent ;
+   *  - FACULTATIVE DE BOUT EN BOUT. Si elle ne repond pas, la recherche
+   *    s'affiche exactement comme avant. `notorieteDe` ne rejette jamais :
+   *    l'absence d'ordre n'est pas une panne, et il n'y a aucun repli a ecrire.
+   *
+   * MAIS SUR TOUTES LES PAGES, contrairement a la BnF. C'est le cache de
+   * notoriete (sept jours, plus bas) qui le permet : au-dela de la premiere
+   * page l'appel ne coute plus rien. Et il le FAUT — la notoriete n'entrait
+   * sinon que dans les vingt premiers volumes, si bien qu'un tome trouve en
+   * page 2 restait non classe et se rangeait au hasard parmi des cartes, elles,
+   * classees. C'est exactement le defaut que la tranche 3 avait deja combattu :
+   * un ecran qui se reorganise sous les yeux au fil du defilement.
+   *
+   * Mode ISBN excepte : un ISBN designe une edition precise, il n'y a rien a
+   * classer. Mode auteur excepte aussi : l'ordre y vient du regroupement par
+   * ecrivain, pas d'un score (voir `trierResultats`).
+   */
+  const promesseNotoriete = mode === 'titre'
+    ? notorieteDe(requete)
+    : null;
+
   let resultats;
   try {
     resultats = await interroger(requete, mode, page, auteur);
@@ -396,7 +436,14 @@ async function rechercherBrut(texte, mode, page = 0, auteur = '') {
    * completee, sans rappeler personne.
    */
   const completes = completerDepuisBnf(resultats, promesseBnf ? await promesseBnf : []);
-  const illustres = completes.map(avecCouvertureDeRepli);
+  /*
+   * La notoriete s'attache AVANT la fusion et avant l'archivage : c'est le
+   * score qui choisit, dans un groupe de doublons, la fiche qui fera la carte
+   * (§ `fondre`), et il doit donc deja la connaitre. Archivee avec le reste,
+   * la recherche rejouee demain sortira classee sans rappeler personne.
+   */
+  const classes = attribuerNotoriete(completes, promesseNotoriete ? await promesseNotoriete : []);
+  const illustres = classes.map(avecCouvertureDeRepli);
   const pose = Date.now();
   cacheRecherche.set(cle, { pose, resultats: illustres });
   // Volontairement non attendu : archiver ne doit pas retarder l'affichage.
@@ -495,6 +542,87 @@ export function completerDepuisBnf(resultats, notices) {
       complete = { ...complete, [champ]: notice[champ] };
     });
     return complete;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// ATTRIBUER LA NOTORIETE (mission V2, M3)
+// ---------------------------------------------------------------------------
+
+/*
+ * LE RAPPROCHEMENT SE FAIT SUR L'AUTEUR, PAS SUR LE TITRE. C'est la decision
+ * de conception de cette tranche, et elle merite son explication.
+ *
+ * Le reflexe serait de rapprocher par titre, comme la fusion (§ cleRegroupement)
+ * et la completion BnF. Ici cela ne marche pas : Open Library indexe les
+ * oeuvres sous leur titre CANONIQUE, presque toujours anglais. « A Game of
+ * Thrones » ne rejoindrait jamais « Le Trone de Fer », ni « The Fellowship of
+ * the Ring » « La communaute de l'anneau » — c'est-a-dire exactement les cas
+ * qu'on cherche a reparer.
+ *
+ * L'auteur, lui, traverse les traductions : Martin s'ecrit Martin en francais.
+ * Et c'est le signal qui repond au defaut constate — « les essais SUR une
+ * oeuvre passent devant l'oeuvre » —, parce que les essais ne sont PAS ecrits
+ * par l'auteur de l'oeuvre. Rapprocher par auteur remet donc l'ecrivain devant
+ * ses commentateurs, ce qu'aucun signal de fiche ne savait faire.
+ *
+ * CE QUE CELA COUTE, assume : un carnet de notes signe du meme auteur touche
+ * la meme notoriete que son roman. C'est sans consequence — la notoriete
+ * DEPARTAGE, elle ne fabrique pas un classement (voir le plafond dans
+ * `tomes.js`), et la correspondance de titre reste dominante.
+ *
+ * Les auteurs sont rapproches par `cleAuteur`, la meme reduction que la fusion :
+ * insensible aux accents, a la ponctuation et a l'ORDRE du nom — Open Library
+ * ecrit « George R. R. Martin » la ou Google ecrit parfois « Martin, George
+ * R.R. ». Une translitteration (« Френк Герберт ») ne rejoint personne, et
+ * c'est pourquoi on garde TOUTES les graphies rendues par la source.
+ */
+
+/**
+ * Attache a chaque resultat le nombre de lecteurs de l'oeuvre Open Library qui
+ * lui correspond.
+ *
+ * @param {ResultatRecherche[]} resultats ce que Google a rendu
+ * @param {Array<{auteurs: string[], lecteurs: number}>} oeuvres ce qu'Open Library a rendu
+ * @returns {ResultatRecherche[]} meme liste, meme ordre, `lecteurs` en plus
+ */
+export function attribuerNotoriete(resultats, oeuvres) {
+  if (!oeuvres || oeuvres.length === 0) return resultats || [];
+
+  /*
+   * Un auteur peut porter plusieurs oeuvres dans la reponse (Martin en a six
+   * sur dix). On garde la PLUS LUE : c'est celle qui dit la notoriete de
+   * l'ecrivain pour cette recherche.
+   */
+  const parAuteur = new Map();
+  oeuvres.forEach((o, rang) => {
+    (o.auteurs || []).forEach((nom) => {
+      const cle = cleAuteur(nom);
+      if (!cle) return;
+      // Un auteur peut porter plusieurs oeuvres de la reponse (Martin en a six
+      // sur dix). On garde la MIEUX CLASSEE : c'est elle qui dit la place de
+      // l'ecrivain dans la reponse a cette recherche.
+      const connu = parAuteur.get(cle);
+      if (!connu || rang < connu.rang) parAuteur.set(cle, { rang, lecteurs: o.lecteurs });
+    });
+  });
+  if (parAuteur.size === 0) return resultats || [];
+
+  return (resultats || []).map((r) => {
+    // Un livre a plusieurs auteurs : le mieux classe decide. Une edition
+    // annotee « Zola, Emile / Untel » ne doit pas perdre Zola en chemin.
+    let meilleur = null;
+    (r.auteurs || []).forEach((nom) => {
+      const trouve = parAuteur.get(cleAuteur(nom));
+      if (trouve && (!meilleur || trouve.rang < meilleur.rang)) meilleur = trouve;
+    });
+    if (!meilleur) return r;
+    /*
+     * `rangAuteur` est ce qui PESE dans le score ; `lecteurs` n'est la que pour
+     * etre lu au banc d'essai. Voir `tomes.js` pour le pourquoi du rang plutot
+     * que du compte.
+     */
+    return { ...r, rangAuteur: meilleur.rang, lecteurs: meilleur.lecteurs };
   });
 }
 
@@ -646,6 +774,77 @@ async function ecrireArchive(cle, pose, resultats) {
     const { set } = await import('idb-keyval');
     await set(PREFIXE_ARCHIVE + cle, { pose, resultats });
   } catch { /* ecrire l'archive n'est jamais une raison d'echouer */ }
+}
+
+// ---------------------------------------------------------------------------
+// LA NOTORIETE SE GARDE LONGTEMPS (mission V2, M3)
+// ---------------------------------------------------------------------------
+
+/*
+ * POURQUOI UN CACHE A PART, ET SI LONG.
+ *
+ * Open Library n'a ni cle ni quota — mais elle n'a pas non plus d'engagement
+ * de service, et c'est mesure, pas suppose. Le 2026-08-28, sur une fenetre
+ * degradee : 2 reponses sur 12 a une requete triviale espacee de 20 s. Le
+ * meme jour, en fenetre normale : mediane 479 ms. Autrement dit, le classement
+ * d'une recherche dependait de l'humeur du service AU MOMENT PRECIS ou on
+ * tapait — sur un lancement du banc, « game of thrones » etait la seule des
+ * sept a ne rien recevoir, et donc la seule a rester mal classee.
+ *
+ * SEPT JOURS, et non les 24 h de l'archive de recherche. Ce qu'on garde ici
+ * n'est pas un catalogue : c'est le fait que Martin ecrit « Game of Thrones »
+ * et Werber « Les fourmis ». Cela ne change pas d'une semaine a l'autre. Une
+ * notoriete d'hier vaut donc exactement une notoriete d'aujourd'hui, alors
+ * qu'une liste de resultats vieillit.
+ *
+ * ET SURTOUT : EN PANNE, ON RESSORT LA PERIMEE. C'est tout l'interet. Une
+ * notoriete de la semaine derniere classe aussi bien que celle de maintenant,
+ * et infiniment mieux que rien. C'est la meme regle que l'archive de recherche
+ * (tranche 10) — « mieux vaut des resultats d'hier qu'un ecran vide » —
+ * appliquee a une donnee qui, elle, ne se perime pratiquement pas.
+ */
+const NOTORIETE_FRAICHE_MS = 7 * 24 * 60 * 60 * 1000;
+const PREFIXE_NOTORIETE = 'notoriete:';
+
+async function lireNotoriete(cle, duree) {
+  try {
+    const { get } = await import('idb-keyval');
+    const entree = await get(PREFIXE_NOTORIETE + cle);
+    if (!entree) return null;
+    if (duree !== Infinity && Date.now() - entree.pose > duree) return null;
+    return entree.oeuvres;
+  } catch {
+    return null;   // IndexedDB indisponible : on demandera a la source
+  }
+}
+
+async function ecrireNotoriete(cle, oeuvres) {
+  try {
+    const { set } = await import('idb-keyval');
+    await set(PREFIXE_NOTORIETE + cle, { pose: Date.now(), oeuvres });
+  } catch { /* ecrire le cache n'est jamais une raison d'echouer */ }
+}
+
+/**
+ * Les oeuvres notoires d'une recherche : du cache si possible, de la source
+ * sinon, du cache PERIME en dernier recours.
+ * Ne rejette jamais : l'absence d'ordre n'est pas une panne.
+ */
+async function notorieteDe(requete) {
+  const cle = requete.trim().toLowerCase();
+
+  const fraiche = await lireNotoriete(cle, NOTORIETE_FRAICHE_MS);
+  if (fraiche) return fraiche;
+
+  try {
+    const oeuvres = await ol.oeuvresNotoires(requete);
+    // On n'ecrit pas une reponse vide : elle empecherait de redemander pendant
+    // sept jours ce qu'on n'a simplement pas reussi a obtenir.
+    if (oeuvres.length) void ecrireNotoriete(cle, oeuvres);
+    return oeuvres;
+  } catch {
+    return (await lireNotoriete(cle, Infinity)) || [];
+  }
 }
 
 /**

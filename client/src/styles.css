@@ -1073,3 +1073,111 @@ button { font: inherit; color: inherit; }
    l'action principale de l'ecran. */
 .seg--tri { margin-bottom: .75rem; }
 .seg--tri .seg__item { font-size: .82rem; padding: .35rem .5rem; }
+
+/* ---------------------------------------------------------------------------
+ * STATISTIQUES (mission V2, M2) — bas de l'ecran Bibliotheque.
+ * Aucune couleur nouvelle : les chiffres empruntent l'accent, les barres la
+ * couleur du statut « lu ». Une page de statistiques qui introduit sa propre
+ * palette donne l'impression d'une autre application.
+ * ------------------------------------------------------------------------- */
+
+.stats { margin-top: 1.2rem; }
+
+.stats__ligne {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: .5rem;
+  margin-top: .7rem;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+  padding: .7rem .6rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+.stat__valeur {
+  font-family: var(--serif);
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--accent);
+  line-height: 1.2;
+}
+
+.stat__valeur small { font-size: .7rem; font-weight: 400; color: var(--muted); }
+
+/* La liste des supports est du texte, pas un nombre : elle ne doit pas
+   deborder de sa tuile sur un petit ecran. */
+.stat__valeur--petite { font-size: .82rem; line-height: 1.3; }
+
+.stat__libelle { font-size: .72rem; color: var(--muted); }
+
+.stats__titre {
+  font-size: .88rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-top: 1.1rem;
+  margin-bottom: .4rem;
+}
+
+/* Douze colonnes qui tiennent sur la largeur d'un telephone, sans defilement
+   horizontal : c'est ce qui permet de lire l'annee d'un seul regard. */
+.stats__mois {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  align-items: end;
+  gap: 2px;
+  height: 96px;
+  padding: .6rem .4rem .2rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.stats__mois-colonne {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  gap: 2px;
+  min-width: 0;
+}
+
+.stats__mois-nombre {
+  font-size: .62rem;
+  color: var(--muted);
+  line-height: 1;
+}
+
+/* `height` vient du composant : c'est une donnee. Le minimum de 3 px garde une
+   trace visible d'un mois a zero — un trou complet se lit comme une panne. */
+.stats__barre {
+  width: 100%;
+  min-height: 3px;
+  background: var(--lu);
+  border-radius: 3px 3px 0 0;
+  opacity: .85;
+}
+
+.stats__mois-nom {
+  font-size: .58rem;
+  color: var(--faint);
+  line-height: 1;
+  overflow: hidden;
+}
+
+.stats__faits {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: .85rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.stats__faits b { color: var(--text); font-weight: 600; }

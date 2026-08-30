@@ -572,9 +572,16 @@ Date Read, Bookshelves`), en annonçant ce qui est écarté.
   - `publishedDate` est tantôt `'YYYY'` tantôt `'YYYY-MM-DD'` — ce qui valide
     `estAParaitre()` et sa comparaison en fin de période (§5.2).
   - **`ratingsCount` et `averageRating` sont absents de tous les résultats
-    testés.** Confirme définitivement l'arbitrage 16 : aucune popularité à trier.
+    testés.** Vrai, et toujours vrai : *Google Books* n'expose aucune
+    popularité. Mais cela ne valait que pour Google — voir la **tranche 28**,
+    qui rouvre l'arbitrage 16 : Open Library, elle, en expose une.
 
-### 4.2 Open Library — identité
+### 4.2 Open Library — identité **et ordre**
+
+> Depuis la tranche 28, cette source a **deux** rôles. Elle identifie les
+> œuvres (ci-dessous), et elle décide de l'**ordre** des résultats de recherche
+> par titre. Le second rôle n'était pas prévu : il vient de l'infirmation de
+> l'arbitrage 16.
 
 - Base : `https://openlibrary.org`
 - Endpoints :
@@ -583,6 +590,11 @@ Date Read, Bookshelves`), en annonçant ce qui est écarté.
   - `/search.json?q=…&fields=key,title,author_name,editions,editions.*`
     → œuvre **et ses éditions imbriquées en un seul appel**
   - `/works/{olid}.json` → description, sujets, `first_publish_date`
+  - `/search.json?q=…&fields=key,title,author_name,readinglog_count`
+    → les **œuvres notoires** d'une recherche (tranche 28). `fields=` est
+    **obligatoire** : `readinglog_count` n'est pas rendu par défaut. Et il doit
+    rester **court** — une projection à 6 champs monte à 9,5 s, celle-ci tient
+    en 556 ms de médiane.
   - couvertures : `https://covers.openlibrary.org/b/isbn/{isbn}-L.jpg`
 - Sans clé, sans quota strict. Envoyer un `User-Agent` descriptif.
 - **Vérifié en tranche 0, depuis un navigateur** : `/isbn/{isbn}.json` répond en
@@ -1008,7 +1020,7 @@ a changé, sans relire l'échange.
 | 13 | « aujourd'hui » en UTC (bug hérité, décalage d'un jour en soirée) | `aujourdhui()` en heure locale, dans `status.js` | §3.3 |
 | 14 | Médiane de pagination décrite de deux façons | formulation unique : jamais écrite en base, seulement pré-remplie | §4.2, §5.4 |
 | 15 | `commence_le` écrite par personne ; relecture non traitée | `setStatut` porte les deux dates ; relecture définie | §5.2 |
-| 16 | « tri par popularité » : aucun champ ne le produit chez Google Books | tri par score puis ordre d'arrivée Google ; à rouvrir seulement sur appel réel | §4.6 |
+| 16 | « tri par popularité » : aucun champ ne le produit chez Google Books | ~~tri par score puis ordre d'arrivée Google~~ — **ROUVERT ET INFIRMÉ le 2026-08-28 (tranche 28)** : la clause « à rouvrir sur appel réel » a joué. Open Library expose `readinglog_count` ; la recherche s'en sert désormais pour classer | §4.2, §4.6 |
 | 17 | 12 graines héritées d'un monde **sans quota** (TMDB) | ramenées à 6 : 12 appels par actualisation au lieu de 24 | §4.6 |
 | 18 | Deux Modals empilés (pagination puis statut) | un seul Modal, deux temps | §5.4 |
 | 19 | `cycle_manuel` sans porte de sortie | vider le champ remet `cycle_manuel = 0` | §4.4 |
@@ -1923,6 +1935,204 @@ Côté `store.js` : `promouvoirIdentite()` et `creerOeuvreManuelle()`.
 
 ---
 
+### Tranche 27 — 2026-08-27 : la recherche, réparée en quatre temps
+
+> Remontée ici le 2026-08-28, depuis `PLAN_MISSION_RECHERCHE.md`, désormais
+> supprimé. Six symptômes rapportés, **quatre causes réelles** dans le code.
+
+| # | Symptôme | Cause |
+|---|---|---|
+| 121 | Les premiers résultats sont peu pertinents ; il faut défiler | A |
+| 123 | Il faut revenir en arrière pour retrouver ce qu'on avait ; « rien n'est en cache » | B |
+| 122 | Peu de couvertures en recherche, mais les bonnes dans « autre édition » | C + D |
+
+**Cause A — personne ne jugeait la pertinence à part Google.** L'écran affichait
+`intitle:` dans l'ordre d'arrivée, et le tri dit « Pertinence » ne faisait
+rien : le tri par défaut était l'absence de tri.
+
+**Cause B — l'écran de recherche était détruit à chaque changement d'onglet.**
+Le cache fonctionnait pourtant ; c'est l'écran qui se vidait.
+
+**Cause C — la couverture dépend de l'ISBN**, que `intitle:` n'a presque jamais.
+
+**Cause D — aucun regroupement des doublons.** La fiche pauvre s'affichait à la
+place de la bonne, présente quinze lignes plus bas dans la même liste.
+
+**Les quatre temps :**
+
+1. **Classer nous-mêmes** (`scorePertinence`, dans `tomes.js`) : correspondance
+   du titre, sérieux de la fiche, langue française ; pénalité aux titres bien
+   plus longs que la recherche, signature de l'essai. **Le score classe, il ne
+   filtre jamais.**
+2. **Fusionner les doublons** (`fusionnerDoublons`, dans `books.js`) : une carte
+   par œuvre, la mieux classée, **complétée** par ce que les autres savent.
+   « germinal » passe de 20 fiches à 16 cartes, toutes illustrées.
+3. **Garder l'écran en vie** : la Recherche est **masquée**, plus démontée.
+   Trois allers-retours entre onglets laissent 12 cartes sur 12 et **zéro appel
+   réseau**.
+4. **Compléter par la BnF**, en parallèle de Google. Résultat plus nuancé
+   qu'annoncé : **+16 % d'éditeurs**, mais seulement +3,5 % d'ISBN. La tranche a
+   raté sa cible annoncée et en a atteint une autre ; gardée quand même, un
+   appel sans clé ni quota se paie de lui-même.
+
+**Quatre corrections après audit sur données réelles**, le même jour :
+
+| # | Correction | Vérifié |
+|---|---|---|
+| 1 | **Champ auteur facultatif** en mode Titre (`intitle:` + `inauthor:`) | « les fourmis » + « werber » → Werber **1ᵉʳ** |
+| 2 | **Séries nommées**, classées selon leur pertinence et non en tête d'office | « la quête d'Ewilan » ne mélange plus trois cycles |
+| 3 | **Clé de regroupement insensible à l'ordre du nom** | « emile zola » et « Zola, Emile » → une seule carte |
+| 4 | **Mots comptés sur le titre brut** | une édition russe ne passe plus pour une correspondance parfaite |
+
+**Décision de conception importante** : la correction 3 crée une clé de
+regroupement **propre à la recherche** (`cleRegroupement`). L'empreinte d'œuvre
+de §3.2 n'est pas touchée — elle est écrite en base et sert de clé étrangère.
+**Deux besoins, deux fonctions.**
+
+---
+
+### Tranche 28 — 2026-08-28 : ce que le projet séries avait, et l'ordre des résultats
+
+> Mission cadrée après audit du projet `TMDB _ The Movie Database`, pris comme
+> exemple. Remontée ici depuis `PLAN_MISSION_V2.md`, désormais supprimé.
+
+#### Ce que le cadrage a économisé
+
+Six manques avaient été annoncés face au projet séries. **La lecture du code en
+a invalidé deux et redimensionné un troisième**, avant d'écrire une ligne :
+
+- l'**export CSV Goodreads** existait déjà (`backup.js`) ;
+- l'écran **« à paraître »** existait déjà (`MaLecture.jsx`) ;
+- **« Que lire maintenant ? »** existait déjà — c'est `MaLecture` : il n'était
+  simplement pas l'écran d'accueil.
+
+#### Le banc d'essai, avant tout le reste
+
+`npm run banc` rejoue la chaîne complète d'affichage — vraie fusion, vrai score,
+vrais blocs de série — sur **sept recherches de référence**, et imprime la place
+du livre cherché. Ce n'est pas une vérification automatique : **il n'échoue
+jamais, il montre.**
+
+Il a payé immédiatement : au premier lancement il a **infirmé une affirmation du
+plan** (« le trône de fer ne trouve rien » — faux, il était 2ᵉ), et il a montré
+que le problème était plus étroit qu'annoncé : **5 recherches sur 7 étaient déjà
+bonnes**.
+
+#### L'accueil
+
+`ACCUEIL` passe de `'recherche'` à `'lecture'`. L'application ouvrait sur un
+champ vide et un clavier ; elle ouvre désormais sur « tu es à la page 210 de
+Germinal ». Une constante — l'écran existait déjà.
+
+Conséquence à connaître : le bouton retour d'Android ramène désormais à
+« Ma lecture » depuis la Recherche, au lieu de quitter l'application.
+
+#### Les statistiques, en bas de la Bibliothèque
+
+Pas un cinquième onglet : la barre en porte déjà quatre. Pages lues sur 7 /
+30 jours et l'année, livres terminés par mois sur douze mois, note moyenne,
+avis, faits d'armes.
+
+**Quatre règles posées :**
+
+- **la répartition par statut n'y figure pas** — les quatre pavés en haut de la
+  même page la donnent déjà ;
+- **pages et minutes ne s'additionnent jamais** (§5.3). Un profil sans livre
+  audio ne lit jamais le mot « minute » ;
+- **un livre sans pagination est écarté du total** : sa position est un
+  pourcentage (§5.4) ;
+- **aucun temps de lecture, aucune vitesse** : le projet ne stocke pas de durée
+  de session. Ce serait un chiffre inventé affiché avec autorité.
+
+**Un défaut trouvé en construisant l'écran, corrigé dans `store.js`.**
+`rythmeDepuis` comptait l'écart entre la position la plus récente et la plus
+ancienne **de la fenêtre** : avec une seule saisie, l'écart vaut zéro — donc
+**la toute première fois qu'on note sa page ne comptait jamais**. Le calcul part
+désormais de la dernière position connue **avant** la fenêtre, et de zéro à
+défaut. Corrigé dans l'unique domicile de la règle : « Ma lecture » lit le même
+calcul et y gagne aussi.
+
+#### Open Library décide l'ordre — l'arbitrage 16 infirmé
+
+**Google Books est un catalogue de documents ; Open Library est un catalogue
+d'œuvres, avec une popularité.** C'est l'avantage que TMDB donnait au projet
+séries, et que ce projet s'était cru privé.
+
+Sur « game of thrones », le roman de Martin arrivait **4ᵉ**, derrière trois
+essais. Le score n'y pouvait rien : tous ses signaux sont des propriétés du
+*document*, et **un essai bien édité est un excellent document**.
+
+**On rapproche par l'AUTEUR, pas par le titre.** Open Library indexe sous le
+titre canonique anglais — « A Game of Thrones » ne rejoindrait jamais « Le Trône
+de Fer ». L'auteur, lui, traverse les traductions. Et c'est le bon signal :
+**les essais sur une œuvre ne sont pas écrits par l'auteur de l'œuvre.**
+
+**Le rang, pas le compte.** Utiliser le *nombre de lecteurs* a été essayé puis
+écarté par la mesure : sur « les fourmis », le roman de Werber marque 119 contre
+149 au documentaire jeunesse, et les trente points d'écart viennent de la
+**complétude de la notice**, pas du livre. Or 36 lecteurs ne rattrapent jamais
+cela — Open Library est anglophone. Le **rang** est relatif, donc immunisé :
+Werber est 1ᵉʳ sur « les fourmis » comme Martin sur « game of thrones ».
+Barème : 36 points au 1ᵉʳ rang, −4 par rang. Le plafond doit renverser un écart
+de complétude (35 au plus) sans jamais renverser un écart de titre.
+
+**Le cache de notoriété, qui n'était pas prévu et qui est la pièce maîtresse.**
+Open Library n'a ni clé ni quota, mais **aucun engagement de service** : mesuré
+en fenêtre dégradée, **2 réponses sur 12**. Sans cache, le classement dépendait
+de l'humeur du service à la seconde où l'on tapait. On garde donc les œuvres
+notoires **sept jours** — ce n'est pas un catalogue, c'est le fait que Martin
+écrit *Game of Thrones*, et cela ne change pas d'une semaine à l'autre — et
+**en panne, on ressort la version périmée**.
+
+Il a aussi corrigé un défaut non vu : la notoriété n'entrait que dans les vingt
+premiers volumes, si bien qu'un tome trouvé en page 2 se rangeait au hasard
+parmi des cartes classées. L'appel étant gratuit au-delà de la première page,
+il est fait sur **toutes** les pages.
+
+**Deux pièges de source, tous deux invisibles sans mesure :**
+
+- `readinglog_count` **n'est pas rendu par défaut**. Une première version s'en
+  passait pour la vitesse et attachait « 0 lecteur » à tout, en silence.
+  **C'est le banc qui l'a vu, pas le code.**
+- la projection `fields=` doit rester **courte** : 6 champs → jusqu'à 9,5 s et
+  un échec ; les 4 champs utiles → 556 ms de médiane.
+
+**Résultat, mesuré au banc :**
+
+| Recherche | Avant | Après |
+|---|---|---|
+| `game of thrones` | 4 | **1** |
+| `les fourmis` | 16 | **1** |
+| `le trône de fer` | 2 | **1** |
+| les quatre autres | 1 | 1 |
+
+**7 / 7** en première position. Vérifié aussi dans l'application lancée.
+
+#### Quatre missions supprimées par la mesure
+
+Le plan en prévoyait huit. **Quatre sont tombées** parce que leur prémisse était
+fausse — et c'est le résultat le plus utile du banc et du cadrage.
+
+| Mission | Ce qu'on croyait | Ce que la mesure a montré |
+|---|---|---|
+| Pont FR ↔ VO | « le trône de fer » ne trouve rien | Il était déjà 2ᵉ. Réduite à une règle d'affichage, puis sans objet |
+| Bibliographie d'auteur | Le mode Auteur rend des thèses | **Faux.** « tolkien » rend *Le Seigneur des anneaux*, *Le Silmarillion*, *Bilbo* ; « werber » rend Werber. Aucune thèse |
+| Parutions à venir | Les catalogues annoncent les sorties | **La donnée n'existe pas.** Zéro date future sur 40 résultats, pour trois auteurs, triés du plus récent |
+| Recommandations | Les sujets d'une œuvre sont exploitables | **Erratiques** : 67 sujets pour *Game of Thrones*, 100 pour *1984*, **0 pour *Bilbo***. Une fonction muette sur un des livres les plus connus du catalogue |
+
+#### Vérifications
+
+**264** (168 avant la mission). Nouvelles familles : **10 — statistiques**
+(21 cas) et **11 — notoriété** (11 cas), plus 6 cas de résistance aux pannes et
+6 sur le comptage des pages en base.
+
+*Piège de vérification relevé au passage* : six cas cherchaient tous le même
+mot, et le **cache mémoire de `books.js` survit d'un cas à l'autre** — l'un
+relisait le résultat déjà classé d'un autre et passait au vert sans rien
+exercer. **Un mot par cas.**
+
+---
+
 ## 13. Comment lire ce document
 
 Il a été écrit avant la première ligne de code, puis corrigé **120 fois** au fil
@@ -1934,8 +2144,10 @@ décisions que seule la confrontation au réel pouvait trancher.
 - Le **§10** journalise les arbitrages 1 à 60, avec pour chacun le point, la
   décision et la section touchée.
 - Le **§11** dit ce qui reste à faire, et par qui.
-- Le **§12** documente les corrections d'usage (61 à 69), celles nées de
-  l'utilisation réelle de l'application et non des tests.
+- Le **§12** documente les corrections d'usage et les **tranches 8 à 28**,
+  celles nées de l'utilisation réelle de l'application et non des tests. Les
+  deux dernières y ont été remontées depuis leurs plans de mission, supprimés
+  une fois leur contenu ici.
 
 **Les quatre corrections qui ont le plus changé le projet**, si l'on ne devait
 en retenir que quatre :

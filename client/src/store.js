@@ -547,18 +547,53 @@ export function enregistrerSession(profileId, oeuvreId, jour, positionFin) {
 }
 
 /*
- * Pages (ou minutes) gagnées depuis `depuis`. C'est une différence entre la
- * dernière position et la plus ancienne de la fenêtre — pas une somme, sinon
- * une position saisie deux fois compterait double.
+ * Pages (ou minutes) gagnées depuis `depuis`. C'est une DIFFÉRENCE, jamais une
+ * somme : une position saisie deux fois dans la fenêtre compterait double.
+ *
+ * LE POINT DE DÉPART EST CELUI D'AVANT LA FENÊTRE (mission V2, M2).
+ *
+ * La version précédente prenait comme départ la plus ancienne position DE LA
+ * FENÊTRE. Deux conséquences, toutes deux fausses, et la première est grave :
+ *
+ *  1. la TOUTE PREMIÈRE saisie d'un livre ne comptait jamais. Une seule ligne
+ *     dans la fenêtre, donc MAX = MIN, donc gain nul. Quelqu'un qui note sa
+ *     page pour la première fois lisait « tu as lu 0 page cette semaine » ;
+ *  2. un livre posé page 100 le mois dernier et repris page 150 hier comptait
+ *     0 sur sept jours au lieu de 50 — les pages lues étaient attribuées à une
+ *     période où l'on n'avait rien saisi.
+ *
+ * On prend donc comme départ la DERNIÈRE position connue AVANT la fenêtre, et
+ * à défaut ZÉRO — un livre dont on n'a jamais noté la page était, pour tout ce
+ * que l'application en sait, au début.
+ *
+ * SURCOMPTE CONNU, et préféré au défaut inverse : ajouter un livre qu'on lit
+ * déjà et noter d'emblée « page 400 » fait compter 400 pages sur la semaine.
+ * C'est faux dans la vie, mais c'est exactement ce que l'application a
+ * enregistré comme progression. L'autre choix — ne rien compter tant qu'il n'y
+ * a pas deux saisies — rendait la fonction inutilisable : le cas le plus
+ * fréquent, celui de la première saisie, affichait toujours zéro.
+ *
+ * Corrigé ici, dans l'unique domicile de la règle, plutôt que dans les
+ * statistiques : « Ma lecture » lit le même calcul, et deux comptes différents
+ * pour la même semaine sur deux écrans voisins seraient pires que le défaut.
  */
 export async function rythmeDepuis(profileId, depuis) {
   return query(
-    `SELECT oeuvre_id AS oeuvreId,
-            MAX(position_fin) - MIN(position_fin) AS gain
-     FROM sessions_lecture
-     WHERE profile_id = ? AND jour >= ?
-     GROUP BY oeuvre_id HAVING gain > 0;`,
-    [profileId, depuis],
+    `SELECT s.oeuvre_id AS oeuvreId,
+            MAX(s.position_fin) - COALESCE(
+              (SELECT a.position_fin
+                 FROM sessions_lecture a
+                WHERE a.profile_id = s.profile_id
+                  AND a.oeuvre_id  = s.oeuvre_id
+                  AND a.jour < ?
+                ORDER BY a.jour DESC
+                LIMIT 1),
+              0
+            ) AS gain
+     FROM sessions_lecture s
+     WHERE s.profile_id = ? AND s.jour >= ?
+     GROUP BY s.oeuvre_id HAVING gain > 0;`,
+    [depuis, profileId, depuis],
   );
 }
 

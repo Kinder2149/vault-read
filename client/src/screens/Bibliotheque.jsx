@@ -14,6 +14,7 @@ import { getListes, getListeItems, deleteListe } from '../api.js';
 import { notify } from '../notify.js';
 import BookCard from '../components/BookCard.jsx';
 import Modal from '../components/Modal.jsx';
+import Statistiques from '../components/Statistiques.jsx';
 
 const FORMATS = [
   { cle: 'tout', libelle: 'Tout' },
@@ -228,6 +229,16 @@ export default function Bibliotheque({ bibliotheque, cardProps }) {
           </div>
         </>
       )}
+
+      {/*
+        LES STATISTIQUES VIVENT ICI, en bas de la bibliotheque, et non dans un
+        cinquieme onglet : la barre en porte deja quatre et un de plus la serre
+        sur un telephone. C'est aussi l'endroit ou l'on regarde deja sa
+        collection. Elles ne s'affichent QUE hors d'une liste personnalisee :
+        elles decrivent toute la bibliotheque, pas la liste consultee, et les
+        montrer sous « Mes classiques » ferait croire qu'elles s'y rapportent.
+      */}
+      {!listeActive && <Statistiques bibliotheque={bibliotheque} />}
     </section>
   );
 }

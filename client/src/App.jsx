@@ -35,7 +35,27 @@ const ONGLETS = [
   { cle: 'reglages', libelle: 'Réglages', icone: 'reglages' },
 ];
 
-const ACCUEIL = 'recherche';
+/*
+ * L'ACCUEIL EST « MA LECTURE », plus la recherche (mission V2, M1).
+ *
+ * L'application ouvrait sur un champ vide et un clavier — elle demandait ce
+ * qu'on veut avant de dire ou on en est. Le projet series, lui, ouvre sur
+ * « Ce soir » : il rappelle ce qu'on etait en train de regarder. L'ecran
+ * equivalent existe ici depuis toujours et il est meilleur (En cours avec
+ * progression, Tome suivant a lire, A paraitre) ; il etait seulement en
+ * deuxieme position.
+ *
+ * Deux consequences, verifiees plutot que supposees :
+ *  - le bouton retour d'Android suit « surcouche -> onglet -> ACCUEIL ->
+ *    sortie » (§6). Depuis la Recherche, il ramene donc desormais a Ma lecture
+ *    au lieu de quitter. C'est le comportement voulu : on ne sort plus de
+ *    l'application par megarde en fermant une recherche ;
+ *  - la Recherche reste MONTEE-MASQUEE au demarrage (tranche 3). Elle ne coute
+ *    aucun appel reseau pour autant : au montage elle ne fait que verifier la
+ *    presence du scanner et relire l'historique en base locale. Les
+ *    suggestions, seules a interroger Google, sont a la demande (§4.6 pt 6).
+ */
+const ACCUEIL = 'lecture';
 
 export default function App() {
   const [view, setView] = useState(ACCUEIL);

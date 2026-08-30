@@ -11,7 +11,8 @@
     "android": "npm run build && npx cap sync android",
     "test": "vitest run",
     "test:suivi": "vitest",
-    "controle-sources": "node tests/controle-sources.js"
+    "controle-sources": "node tests/controle-sources.js",
+    "banc": "node tests/banc-recherche.js"
   },
   "dependencies": {
     "@capacitor-community/sqlite": "^8.1.1",
