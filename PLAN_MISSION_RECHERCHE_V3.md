@@ -173,6 +173,38 @@ nouveau, sans risque.
 **Test.** Au banc : 0 fusion fausse. À l'écran : la carte du *Seigneur des
 Anneaux* ne porte plus la couverture du making-of.
 
+**FAIT le 2026-08-30.** Banc complet, 8 recherches sur 8 mesurées :
+
+```
+  recherche                    cartes  defauts  sans image  place du livre
+  « harry potter »                 35        0            4         1
+  « le seigneur des anneaux »      29        0           14         1
+  « le trone de fer »              37        0            1         1
+  « la quete d'ewilan »            16        0            6         1
+  « la passe-miroir »              15        0            7         1
+  « game of thrones »              34        0           13         1
+  « germinal »                     15        0            2         1
+  « les fourmis »                  33        0           11         1
+```
+
+**Aucun défaut de carte. Le livre cherché en 1ʳᵉ place partout.** Et le coût
+annoncé se confirme : Germinal reste à 15 cartes, Le Seigneur des Anneaux passe
+de 24 à 29.
+
+**Comment c'est fait.** Deux raisons de fusionner, qui se **cumulent** et se
+chaînent : le même ISBN (une preuve, qui vaut même si les titres diffèrent) ou
+le même titre entier + auteur + tome. La relation est transitive — A et B par
+l'ISBN, B et C par le titre, donc les trois ensemble — d'où un petit
+« qui appartient à qui » plutôt qu'une simple clé : une seule clé ne saurait pas
+exprimer deux raisons.
+
+13 vérifications nouvelles (famille 12), écrites sur les fiches réelles :
+le making-of ne rejoint pas le roman, deux tomes ne fusionnent pas, les
+24 éditions de Germinal n'en font qu'une, et **une carte ne prend jamais la
+couverture d'un livre au titre différent**.
+
+**283 vérifications.**
+
 ### M4 — La couverture : ne plus faire semblant
 
 **Ce qui change.** Le repli Open Library par ISBN est **supprimé** (0/39

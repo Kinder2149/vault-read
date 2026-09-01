@@ -16,7 +16,7 @@ import * as bnf from './sources/bnf.js';
  * dans un fichier de presentation : c'est l'inverse, on emprunte un calcul.
  * Il sert a designer, dans un groupe de doublons, la fiche qui fera la carte.
  */
-import { scorePertinence } from './tomes.js';
+import { numeroDeTome, scorePertinence } from './tomes.js';
 
 /** @typedef {import('./types.js').ResultatRecherche} ResultatRecherche */
 /** @typedef {import('./types.js').Identite} Identite */
@@ -149,10 +149,66 @@ function normaliser(texte, couperSousTitre) {
  * On trie donc les mots du nom : « emile zola » et « zola emile » donnent la
  * meme cle. Une translitteration (« Эмиль Золя ») reste a part : elle ne
  * partage aucune lettre, et rien ne permet de la rattacher sans risque.
+ *
+ * -------------------------------------------------------------------------
+ * CORRIGE LE 2026-08-30 — LE TITRE N'EST PLUS COUPE AU « : ».
+ *
+ * C'etait LA cause des couvertures fausses. La cle appelait
+ * `normaliser(titre, true)`, qui tronque au deux-points ; elle jetait donc
+ * exactement le morceau qui distingue deux livres, et gardait le sous-titre,
+ * ou se trouve le bruit. Elle faisait l'inverse de ce qu'il fallait.
+ *
+ * Deux fusions reellement fausses, relevees a l'ecran :
+ *   « Le Seigneur des Anneaux : La communaute de l'anneau. Les coulisses du
+ *     film »  reuni avec  « Le Seigneur des anneaux »
+ *   « ... : la communaute de l'anneau »  reuni avec  « ... : les deux tours »
+ * La carte affichait alors le titre de l'un, la couverture de l'autre et le
+ * resume d'un troisieme.
+ *
+ * Mesure comparative sur 212 volumes reels, trois cles :
+ *
+ *   cle              fusions fausses   cartes rendues
+ *   ACTUELLE                       3   reference
+ *   TITRE ENTIER                   0   +1 a +2 seulement
+ *   ISBN SEUL                      0   +23 sur « germinal » (15 -> 38)
+ *
+ * Conclusions, toutes contre-intuitives :
+ *  - le TITRE ENTIER ne coute presque aucune carte et supprime TOUTES les
+ *    fusions fausses. Il n'y a donc aucun arbitrage a faire entre « mentir »
+ *    et « dupliquer » : on peut avoir les deux ;
+ *  - l'ISBN SEUL, envisage d'abord, est une MAUVAISE cle : il fait exploser
+ *    « germinal » en 38 cartes. Il reste utilise, mais comme PREUVE qui
+ *    ajoute des fusions (voir `fusionnerDoublons`), jamais comme separateur ;
+ *  - le SOUS-TITRE ne doit pas entrer dans la cle : les 24 fiches de Germinal
+ *    ne different que par lui (« roman », « Large Print »,
+ *    « Les Rougon-Macquart »). C'est du bruit d'edition, pas de l'identite.
+ *
+ * Le NUMERO DE TOME entre en revanche dans la cle : deux tomes d'une meme
+ * serie portent parfois le meme titre reduit, et les reunir efface le tome
+ * sur la carte — le defaut « le titre ne precise pas le tome ».
+ *
+ * Rend `null` quand il manque le titre ou l'auteur : la fiche reste alors
+ * seule plutot que d'aspirer les autres.
  */
-function cleRegroupement(titre, auteurs) {
+function cleRegroupement(titre, auteurs, sousTitre = null) {
   const premier = Array.isArray(auteurs) ? auteurs[0] : auteurs;
-  return `grp:${normaliser(titre, true)}|${cleAuteur(premier)}`;
+  const nom = cleAuteur(premier);
+  const t = normaliser(titre, false);
+  if (!t || !nom) return null;
+  const tome = numeroDeTome(`${titre || ''} ${sousTitre || ''}`);
+  return `grp:${t}|${nom}|t${tome ?? ''}`;
+}
+
+/*
+ * UN ISBN, reduit a ce qui le rend comparable : chiffres et X final. Les
+ * sources l'ecrivent avec ou sans tirets.
+ * Note : la forme a 10 chiffres et la forme a 13 du MEME livre restent
+ * differentes ici. C'est une fusion manquee, jamais une fusion fausse — et la
+ * cle de titre la rattrape presque toujours.
+ */
+function cleIsbn(valeur) {
+  const brut = String(valeur || '').replace(/[^0-9Xx]/g, '').toUpperCase();
+  return brut.length >= 10 ? brut : null;
 }
 
 /*
@@ -192,18 +248,53 @@ function estVide(valeur) {
  *   si c'est une AUTRE de ses fiches qui a ete retenue.
  */
 export function fusionnerDoublons(resultats, requete = '') {
-  const groupes = new Map();
+  const liste = resultats || [];
 
-  (resultats || []).forEach((r) => {
-    const auteur = Array.isArray(r.auteurs) ? r.auteurs[0] : r.auteurs;
-    // Sans titre NI auteur, l'empreinte ne distingue plus rien : cette fiche
-    // reste seule dans son groupe plutot que d'aspirer toutes les autres.
-    const cle = (r.titre && auteur)
-      ? cleRegroupement(r.titre, r.auteurs)
-      : `seul:${r.cleSource}`;
-    const groupe = groupes.get(cle);
-    if (groupe) groupe.push(r);
-    else groupes.set(cle, [r]);
+  /*
+   * DEUX RAISONS DE FUSIONNER, ET ELLES SE CUMULENT :
+   *   1. le meme ISBN — une PREUVE, qui vaut meme si les titres different ;
+   *   2. le meme titre entier + auteur + tome.
+   * Deux fiches liees par l'une OU l'autre finissent sur la meme carte, et la
+   * relation est transitive : A et B par l'ISBN, B et C par le titre, donc
+   * A, B et C ensemble. D'ou ce petit « qui appartient a qui » plutot qu'une
+   * simple Map de cles — une seule cle ne saurait pas exprimer deux raisons.
+   */
+  const chef = new Map();
+  liste.forEach((r) => chef.set(r.cleSource, r.cleSource));
+  const racine = (x) => {
+    let c = x;
+    while (chef.get(c) !== c) { chef.set(c, chef.get(chef.get(c))); c = chef.get(c); }
+    return c;
+  };
+  const unir = (a, b) => {
+    const ra = racine(a);
+    const rb = racine(b);
+    if (ra !== rb) chef.set(rb, ra);
+  };
+
+  // 1. La preuve : le meme ISBN. Elle ne peut qu'AJOUTER des fusions.
+  const parIsbn = new Map();
+  liste.forEach((r) => {
+    [r.isbn13, r.isbn10].map(cleIsbn).filter(Boolean).forEach((i) => {
+      if (parIsbn.has(i)) unir(parIsbn.get(i), r.cleSource);
+      else parIsbn.set(i, r.cleSource);
+    });
+  });
+
+  // 2. Le titre entier, l'auteur, le tome.
+  const parTitre = new Map();
+  liste.forEach((r) => {
+    const cle = cleRegroupement(r.titre, r.auteurs, r.sousTitre);
+    if (!cle) return;   // sans titre ou sans auteur : la fiche reste seule
+    if (parTitre.has(cle)) unir(parTitre.get(cle), r.cleSource);
+    else parTitre.set(cle, r.cleSource);
+  });
+
+  const groupes = new Map();
+  liste.forEach((r) => {
+    const g = racine(r.cleSource);
+    if (!groupes.has(g)) groupes.set(g, []);
+    groupes.get(g).push(r);
   });
 
   return [...groupes.values()].map((groupe) => fondre(groupe, requete));
@@ -545,7 +636,8 @@ export function completerDepuisBnf(resultats, notices) {
     // Meme cle lache qu'a la fusion : la BnF ecrit « Zola, Emile » la ou
     // Google ecrit « Emile Zola », et l'ordre du nom ne doit pas empecher le
     // rapprochement.
-    const cle = cleRegroupement(n.titre, n.auteurs);
+    const cle = cleRegroupement(n.titre, n.auteurs, n.sousTitre);
+    if (!cle) return;
     // La PREMIERE notice gagne : la BnF rend ses editions de la plus proche a
     // la plus lointaine, et prendre la derniere donnerait l'edition la plus
     // obscure du lot.
@@ -555,7 +647,8 @@ export function completerDepuisBnf(resultats, notices) {
   return (resultats || []).map((r) => {
     const auteur = Array.isArray(r.auteurs) ? r.auteurs[0] : r.auteurs;
     if (!r.titre || !auteur) return r;
-    const notice = parEmpreinte.get(cleRegroupement(r.titre, r.auteurs));
+    const cleR = cleRegroupement(r.titre, r.auteurs, r.sousTitre);
+    const notice = cleR ? parEmpreinte.get(cleR) : null;
     if (!notice) return r;
 
     // Meme regle qu'a la fusion : on comble, on n'ecrase jamais. Google reste
