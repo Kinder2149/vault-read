@@ -2133,6 +2133,155 @@ exercer. **Un mot par cas.**
 
 ---
 
+### Tranche 29 — 2026-08-30 : la recherche, reprise à la racine
+
+> Remontée ici depuis `PLAN_MISSION_RECHERCHE_V3.md`, désormais supprimé.
+> Déclencheur : un test sur téléphone où la recherche a été jugée non
+> fonctionnelle, **après** que la tranche 28 eut annoncé « 7 / 7 ».
+
+| # | Symptôme rapporté | Cause mesurée |
+|---|---|---|
+| 124 | Les résultats ne sont toujours pas pertinents | L'archive de 24 h resservait la page 1 **non classée** |
+| 125 | Les vrais résultats n'apparaissent **qu'en défilant** | Même cause : page 1 en conserve, pages suivantes fraîches donc classées |
+| 126 | La couverture est parfois **complètement fausse**, la description ne correspond pas au titre | La clé de fusion **coupait le titre au « : »** |
+| 127 | Le titre ne précise pas le tome | Le lecteur de tomes ratait **100 %** du format BnF |
+
+#### La leçon de méthode, avant tout le reste
+
+**La tranche 28 avait annoncé 7 / 7 pendant que l'application était
+inutilisable.** Son banc d'essai ne mesurait qu'une chose : la place du livre
+cherché. Ni la couverture, ni le résumé, ni le tome. **Trois des quatre
+reproches lui étaient structurellement invisibles**, et il donnait donc le
+droit de se déclarer satisfait.
+
+> Un instrument qui ne mesure pas ce dont on se plaint est **pire** que pas
+> d'instrument.
+
+Le banc a donc été refait **en premier**, et il vérifie désormais LA CARTE :
+d'où vient la couverture affichée, d'où vient le résumé, si un champ a été
+emprunté à une fiche portant un **autre titre**, le tome lu, les cartes sans
+image. Il a aussitôt attrapé les deux défauts rapportés.
+
+#### Le cache ne fige plus le classement
+
+L'intention était écrite pour la fusion — « l'archive garde les résultats tels
+que la source les a rendus » — mais la notoriété la violait : elle était
+attachée **avant** l'archivage. Une recherche déjà faite ressortait donc avec le
+classement de la version précédente, une journée entière.
+
+L'archive ne contient plus que du **brut**. Classement et fusion se recalculent
+à chaque affichage : une correction se voit immédiatement, y compris sur les
+recherches déjà archivées.
+
+Un bouton **« vider le cache de recherche »** est ajouté dans Réglages. Il ne
+touche ni la bibliothèque ni l'historique — c'est toute sa raison d'être :
+vider les données de l'application depuis Android aurait emporté les livres.
+
+**Défaut introduit puis corrigé dans la même journée** : pour ne pas redemander
+la notoriété à chaque affichage, les **échecs** d'Open Library avaient été
+archivés une heure. Vérifié aussitôt dans l'application, « harry potter »
+rendait trois essais devant Rowling parce qu'**un seul appel lent** avait été
+enregistré comme « rien à dire » — alors que la source répondait en 535 ms juste
+après. **Un échec n'est pas une donnée** : il vit maintenant deux minutes en
+mémoire et meurt avec la session.
+
+#### La clé de fusion — la décision structurante
+
+La clé coupait le titre au « : », jetant le morceau qui distingue les livres, et
+gardait le sous-titre, où se trouve le bruit d'édition. **Elle faisait l'inverse
+de ce qu'il fallait.**
+
+Mesure comparative sur **212 volumes réels** :
+
+```
+cle              fusions fausses   cartes rendues
+ACTUELLE                       3   reference
+TITRE ENTIER                   0   +1 a +2 seulement
+ISBN SEUL                      0   +23 sur « germinal » (15 -> 38)
+```
+
+**Il n'y avait aucun arbitrage à faire entre « mentir » et « dupliquer ».** Et
+l'ISBN seul, envisagé d'abord et présenté comme une vertu, était la **mauvaise**
+piste.
+
+Règle retenue — deux raisons de fusionner, **cumulatives et transitives** :
+
+- **le même ISBN** : une preuve, qui vaut même si les titres diffèrent ;
+- **ou le même titre entier + auteur + tome**.
+
+A et B par l'ISBN, B et C par le titre → les trois ensemble. D'où un petit
+« qui appartient à qui » plutôt qu'une simple clé : une seule clé ne saurait pas
+exprimer deux raisons.
+
+Le **sous-titre** n'entre plus dans la clé (les 24 fiches de Germinal ne
+diffèrent que par lui). Le **numéro de tome** y entre (deux tomes réunis
+effaçaient le tome de la carte). Le groupe étant fiable, **les fiches se
+complètent de nouveau entre elles** — c'était l'intérêt de fusionner.
+
+#### Le tome, lu à la manière de la BnF
+
+La BnF n'écrit jamais « tome » : elle pose le numéro après un point ou une
+virgule — `Le trône de fer. 1 : roman`, `Le Seigneur des anneaux. 4, Appendices
+et index`. Le lecteur en ratait **cent pour cent** : 0 tome reconnu sur les
+20 notices de chaque saga, alors que 17 y étaient écrits.
+
+Ajouté : le chiffre après ponctuation, et le chiffre **romain** jusqu'à X. La
+règle de prudence d'origine est conservée et renforcée — la ponctuation est
+**exigée**, et le chiffre doit finir le titre ou introduire un sous-titre.
+
+#### L'auteur, écrit autrement
+
+Open Library écrit « J.R.R. Tolkien », Google « John Ronald Reuel Tolkien ». La
+clé triait les mots du nom : elle rapprochait « Zola, Émile » de « Émile Zola »,
+mais pas deux abréviations. Seconde clé ajoutée : **nom de famille + initiales**.
+Les initiales sont gardées délibérément — sur le seul nom de famille, « Martin »
+rapprocherait George R. R. Martin de n'importe quel Martin.
+
+Elle sert au **classement seulement**. La fusion garde la clé stricte :
+rapprocher deux fiches pour les fondre demande plus de certitude que leur
+donner un bonus.
+
+#### Deux missions annulées par la mesure
+
+| Mission | Ce qu'on croyait | Ce que la mesure a montré |
+|---|---|---|
+| Supprimer le repli de couverture | 0 couverture récupérée sur 39 | En réélargissant **avant** de supprimer : **10 sur 35 (29 %)**. Le premier chiffre n'était pas faux, il était **partiel** — quatre sagas modernes qu'Open Library ne couvre pas. On ne touche à rien |
+| Open Library choisit les œuvres | Cela écarterait les carnets et les making-of | **Une vraie édition de Tolkien serait effacée.** 88 % des cartes écartées sur « le seigneur des anneaux ». Le signal est assez bon pour classer, beaucoup trop faible pour filtrer |
+
+**La leçon commune** : une mesure sur un seul type de requête ne se généralise
+pas, et un signal ne se transpose pas d'un usage à l'autre.
+
+#### La limite assumée
+
+**Harry Potter ne porte aucun numéro de tome, nulle part** — 0 détecté sur
+40 fiches Google et 20 notices BnF. *À l'École des sorciers*, *la Chambre des
+secrets* : l'information n'existe pas dans les titres français. Open Library
+l'ordonnerait par année de première parution, mais cette année appartient à
+l'**œuvre**, alors que nos cartes portent celle de leur **édition**.
+
+**Pour une saga sans numéro dans ses titres, l'ordre n'est pas garanti.** Écrit
+ici pour ne pas être redécouvert comme un bug.
+
+#### Résultat
+
+```
+  recherche                    cartes  defauts  sans image  place du livre
+  « harry potter »                 35        0            4         1
+  « le seigneur des anneaux »      29        0           14         1
+  « le trone de fer »              37        0            1         1
+  « la quete d'ewilan »            16        0            6         1
+  « la passe-miroir »              15        0            7         1
+  « game of thrones »              34        0           13         1
+  « germinal »                     16        0            2         1
+  « les fourmis »                  33        0           11         1
+```
+
+**Aucun défaut de carte. Le livre cherché en 1ʳᵉ place sur les huit
+recherches.** **290 vérifications** (283 → 290, familles 12 « fusion » et
+compléments).
+
+---
+
 ## 13. Comment lire ce document
 
 Il a été écrit avant la première ligne de code, puis corrigé **120 fois** au fil
@@ -2144,7 +2293,7 @@ décisions que seule la confrontation au réel pouvait trancher.
 - Le **§10** journalise les arbitrages 1 à 60, avec pour chacun le point, la
   décision et la section touchée.
 - Le **§11** dit ce qui reste à faire, et par qui.
-- Le **§12** documente les corrections d'usage et les **tranches 8 à 28**,
+- Le **§12** documente les corrections d'usage et les **tranches 8 à 29**,
   celles nées de l'utilisation réelle de l'application et non des tests. Les
   deux dernières y ont été remontées depuis leurs plans de mission, supprimés
   une fois leur contenu ici.
