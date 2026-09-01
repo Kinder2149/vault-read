@@ -430,3 +430,52 @@ describe('Classer par pertinence (tranche 1)', () => {
     expect(() => scorePertinence({}, 'germinal')).not.toThrow();
   });
 });
+
+/*
+ * LES FORMES DE LA BnF (mission recherche V3, M5)
+ *
+ * La BnF n'ecrit JAMAIS « tome » : elle pose le numero apres un point ou une
+ * virgule. Le lecteur en ratait CENT POUR CENT — mesure du 2026-08-30 : zero
+ * tome reconnu sur les 20 notices de chaque saga, alors que 17 y etaient
+ * ecrits. Consequence a l'ecran : « le titre ne precise pas le tome ».
+ *
+ * Tous les titres ci-dessous sont des notices REELLES.
+ */
+describe('Lire un tome ecrit a la maniere de la BnF', () => {
+  it('reconnait le numero pose apres un point', () => {
+    expect(numeroDeTome('Le trône de fer. 1 : roman')).toBe(1);
+    expect(numeroDeTome('Le Seigneur des anneaux. 4, Appendices et index')).toBe(4);
+    expect(numeroDeTome('Le trône de fer : l’intégrale. 3')).toBe(3);
+    expect(numeroDeTome('La Passe-miroir : la tempête des échos. 4')).toBe(4);
+    expect(numeroDeTome("La quête d'Ewilan : sur la route. 3")).toBe(3);
+  });
+
+  it('reconnait le numero pose apres une virgule', () => {
+    expect(numeroDeTome('La Passe-miroir, 1')).toBe(1);
+    expect(numeroDeTome('Le Trône de fer, 3 : Le trône de fer')).toBe(3);
+  });
+
+  it('reconnait un chiffre ROMAIN', () => {
+    expect(numeroDeTome('La Passe-miroir, II : Les disparus du Clairdelune')).toBe(2);
+    expect(numeroDeTome('Le Seigneur des anneaux, III')).toBe(3);
+  });
+
+  it('n-INVENTE toujours pas de tome — la regle la plus importante', () => {
+    // La ponctuation est exigee AVANT le chiffre, et le chiffre doit finir le
+    // titre ou introduire un sous-titre. Sans quoi toute annee deviendrait un
+    // tome.
+    expect(numeroDeTome('1984')).toBeNull();
+    expect(numeroDeTome('Germinal, 1885 edition originale')).toBeNull();
+    expect(numeroDeTome('Vingt mille lieues sous les mers')).toBeNull();
+    expect(numeroDeTome('Dune, 1965')).toBeNull();            // 4 chiffres
+    expect(numeroDeTome('Les Rougon-Macquart (13/20)')).toBeNull();
+    expect(numeroDeTome('Un titre sans rien de special')).toBeNull();
+  });
+
+  it('ne prend pas une initiale d-auteur pour un chiffre romain', () => {
+    // « Zola, E. » ne doit pas devenir un tome. Seuls i, v et x comptent, et
+    // il faut une fin de titre ou un deux-points derriere.
+    expect(numeroDeTome('Germinal, E. Zola')).toBeNull();
+    expect(numeroDeTome('Le seigneur des anneaux, J. R. R. Tolkien')).toBeNull();
+  });
+});

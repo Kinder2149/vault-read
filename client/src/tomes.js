@@ -29,7 +29,35 @@ const MOTIFS = [
   /\bvol\.?\s*0*(\d{1,3})\b/i,
   /\((\d{1,3})\)\s*$/,               // « Le Trone de Fer (3) »
   /#(\d{1,3})\b/,
+
+  /*
+   * LES FORMES DE LA BnF (2026-08-30). Elle n'ecrit JAMAIS « tome » : elle
+   * pose le numero apres un point ou une virgule, suivi du sous-titre.
+   *   « Le trone de fer. 1 : roman »
+   *   « Le Seigneur des anneaux. 4, Appendices et index »
+   *   « La Passe-miroir : la tempete des echos. 4 »
+   *   « La Passe-miroir, 1 »
+   * Mesure : le lecteur en ratait CENT POUR CENT — 0 tome reconnu sur les
+   * 20 notices de chaque saga, alors que 17 y etaient ecrits noir sur blanc.
+   *
+   * La ponctuation est EXIGEE avant le chiffre, et le chiffre doit finir le
+   * titre ou introduire un sous-titre. Sans cette exigence, une annee ou un
+   * nombre quelconque en fin de titre deviendrait un tome. Le garde-fou de
+   * 1 a 200 reste par-dessus.
+   */
+  /[.,]\s*0*(\d{1,3})\s*(?:[:,]|$)/,
 ];
+
+/*
+ * Le chiffre ROMAIN apres une ponctuation : « La Passe-miroir, II : Les
+ * disparus du Clairdelune ». A part, parce qu'une expression reguliere ne
+ * sait pas convertir. Jusqu'a X seulement : au-dela aucune saga ne les
+ * utilise, et les sigles commencent a s'y confondre.
+ */
+const ROMAINS = {
+  i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9, x: 10,
+};
+const MOTIF_ROMAIN = /[.,]\s*([ivx]{1,4})\s*(?:[:,]|$)/i;
 
 /**
  * Numero de tome lu dans un titre, ou null.
@@ -45,6 +73,11 @@ export function numeroDeTome(titre) {
       // Un tome 0 n'existe pas, et au-dela de 200 c'est une annee ou un prix.
       if (n >= 1 && n <= 200) return n;
     }
+  }
+  const rom = t.match(MOTIF_ROMAIN);
+  if (rom) {
+    const n = ROMAINS[rom[1].toLowerCase()];
+    if (n) return n;
   }
   return null;
 }

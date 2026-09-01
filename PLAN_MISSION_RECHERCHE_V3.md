@@ -205,13 +205,39 @@ couverture d'un livre au titre différent**.
 
 **283 vérifications.**
 
-### M4 — La couverture : ne plus faire semblant
+### M4 — ANNULÉE le 2026-08-30 : le repli fonctionne
 
-**Ce qui change.** Le repli Open Library par ISBN est **supprimé** (0/39
-mesuré ; il ne produit que des requêtes qui échouent). Les 21 % de cartes sans
-image gardent la **couverture dessinée**, qui existe déjà.
+**Ce que cette mission devait faire.** Supprimer le repli Open Library par
+ISBN, mesuré à **0 couverture récupérée sur 39**.
 
-**Test.** Aucune requête d'image en échec ; aucune carte vide.
+**Pourquoi elle est annulée.** Avant de supprimer une fonction, j'ai réélargi
+la mesure. Le résultat contredit le premier :
+
+```
+germinal          1 sans couverture mais avec ISBN ->  0 recuperees
+les fourmis       6                                ->  1
+dune              8                                ->  6
+la peste          6                                ->  0
+le petit prince   5                                ->  1
+1984              9                                ->  2
+                                        TOTAL  10/35  (29 %)
+```
+
+**Le premier chiffre n'était pas faux, il était partiel.** Il portait sur
+quatre sagas modernes — Harry Potter, Le Seigneur des Anneaux, La Passe-Miroir,
+Hunger Games — dont les éditions françaises récentes ne sont pas couvertes par
+Open Library. Sur des classiques très réédités, le repli rend 29 %, ce qui
+rejoint l'ordre de grandeur annoncé à l'origine (« environ deux sur cinq »).
+
+**Décision : on ne touche à rien.** Le repli ne consomme aucun quota — c'est
+une adresse d'image, pas un appel d'API — et il récupère entre 0 et 29 % des
+couvertures manquantes selon le type de livre. Les requêtes d'image qui
+échouent retombent proprement sur la couverture dessinée (`onError` dans
+`BookCard`).
+
+**Leçon de méthode, la troisième de cette mission** : une mesure sur un seul
+type de requête ne se généralise pas. J'ai failli supprimer une fonction qui
+marche.
 
 ### M5 — Le lecteur de tomes apprend la BnF
 
@@ -219,6 +245,22 @@ image gardent la **couverture dessinée**, qui existe déjà.
 Mesuré : **+17 tomes** sur les sagas de test.
 
 **Test.** L'écran des éditions affiche le tome des notices BnF.
+
+**FAIT le 2026-08-30.** La BnF n'écrit jamais « tome » : elle pose le numéro
+après un point ou une virgule — `Le trône de fer. 1 : roman`,
+`Le Seigneur des anneaux. 4, Appendices et index`. Le lecteur en ratait
+**cent pour cent**.
+
+Deux formes ajoutées : le chiffre après ponctuation, et le chiffre **romain**
+(`La Passe-miroir, II : Les disparus du Clairdelune`).
+
+La règle de prudence d'origine est conservée et renforcée : la ponctuation est
+**exigée** avant le chiffre, qui doit finir le titre ou introduire un
+sous-titre. Vérifié qu'on n'invente toujours rien — `1984`,
+`Germinal, 1885 édition originale`, `Les Rougon-Macquart (13/20)` et
+`Le seigneur des anneaux, J. R. R. Tolkien` ne donnent aucun tome.
+
+**288 vérifications** (5 nouvelles).
 
 ### M6 — Open Library choisit les œuvres
 
