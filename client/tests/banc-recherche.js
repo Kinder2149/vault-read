@@ -1,39 +1,39 @@
 /*
- * BANC D'ESSAI DE LA RECHERCHE — a lancer a la main, pour voir CE QUI SORT
- * quand on cherche un livre, et a quelle place arrive celui qu'on cherchait.
+ * BANC D'ESSAI DE LA RECHERCHE — a lancer a la main.
  *
  *   npm run banc
  *
  * Ce n'est PAS une verification automatique : il n'echoue jamais, il MONTRE.
- * Le jugement reste humain. C'est volontaire — un classement ne se declare pas
- * bon ou mauvais par un booleen, il se regarde.
+ * Le jugement reste humain — un classement ne se declare pas bon ou mauvais
+ * par un booleen, il se regarde.
  *
- * A QUOI IL SERT. Toute amelioration du classement (source d'ordre, score,
- * notoriete) se juge sur un avant/apres. Sans cet instrument, on juge a l'oeil
- * sur une recherche, on croit avoir gagne, et on decouvre la regression sur le
- * telephone. Le tableau final donne UN chiffre par recherche — la place du
- * livre attendu — et c'est ce chiffre qu'on compare.
+ * POURQUOI IL A ETE REECRIT (2026-08-30).
  *
- * CE QU'IL REJOUE VRAIMENT. La chaine complete d'affichage, avec le VRAI code :
- *   books.fusionnerDoublons   -> une carte par oeuvre
- *   tomes.organiserLEcran     -> series nommees + livres isoles, classes
- *   tomes.scorePertinence     -> la note de chaque carte
- * Deux pages sont chargees (40 volumes), comme l'ecran apres un defilement :
- * c'est a partir de la page 2 que les series se confirment (§ serieAConfirmer).
+ * Sa version precedente annoncait « 7 / 7 » pendant que l'application etait
+ * jugee inutilisable sur le telephone. Elle ne mesurait qu'UNE chose : la
+ * place du livre cherche. Ni la couverture, ni le resume, ni le tome. Trois
+ * des quatre reproches lui etaient structurellement invisibles, et elle
+ * donnait donc le droit de se declarer satisfait.
  *
- * Open Library, elle, est appelee par SON VRAI code (`oeuvresNotoires`) : cette
- * source ne lit aucune variable de compilation, elle se charge donc sous node.
+ * Un instrument qui ne mesure pas ce dont on se plaint est PIRE que pas
+ * d'instrument. Celui-ci verifie desormais LA CARTE :
  *
- * CE QU'IL DUPLIQUE, ET POURQUOI. L'appel a Google Books est reecrit ici au
- * lieu d'appeler `sources/google.js`. Raison technique, pas de confort : cette
- * source lit sa cle dans `import.meta.env`, que Vite remplace a la
- * compilation et qui n'existe pas sous node — l'importer echouerait.
- * `tests/controle-sources.js` fait deja le meme choix, pour la meme raison.
- * Ce qui est duplique est donc la REQUETE (l'entree du banc), jamais le
- * classement (ce qu'on mesure) : si `google.js` change sa requete, le banc
- * mesure une entree legerement differente, et il faut le remettre en phase.
+ *   - d'ou vient la COUVERTURE affichee, et d'ou vient le RESUME ;
+ *   - si un champ a ete emprunte a une fiche qui porte un AUTRE titre —
+ *     c'est-a-dire le defaut exact rapporte : « la couverture est parfois
+ *     completement fausse, la description ne correspond pas au titre » ;
+ *   - le TOME lu dans le titre ;
+ *   - les cartes sans image.
  *
- * Attention : chaque lancement consomme environ 14 requetes sur le quota
+ * ET IL DOIT TROUVER DES DEFAUTS. Tant que les corrections ne sont pas faites,
+ * un banc qui ne signale rien est un banc casse.
+ *
+ * CE QU'IL DUPLIQUE. L'appel a Google Books est reecrit ici : cette source lit
+ * sa cle dans `import.meta.env`, que Vite remplace a la compilation et qui
+ * n'existe pas sous node. `tests/controle-sources.js` fait le meme choix pour
+ * la meme raison. Open Library, elle, est appelee par son VRAI code.
+ *
+ * Attention : chaque lancement consomme environ 18 requetes sur le quota
  * quotidien de 1 000 (§4.1).
  */
 
@@ -41,30 +41,23 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { fusionnerDoublons, attribuerNotoriete } from '../src/books.js';
 import { oeuvresNotoires } from '../src/sources/openlibrary.js';
-import { organiserLEcran, scorePertinence } from '../src/tomes.js';
-
-// ---------------------------------------------------------------------------
-// LES RECHERCHES DE REFERENCE — figees.
-// ---------------------------------------------------------------------------
+import { numeroDeTome, scorePertinence } from '../src/tomes.js';
 
 /*
- * `cible` est le nom de l'auteur du livre QU'ON CHERCHAIT. Le banc s'en sert
- * pour dire a quelle place il arrive. C'est tout l'interet du tableau final :
- * un chiffre, comparable d'une version a l'autre.
- *
- * « le trone de fer » est le titre FRANCAIS des romans que « game of thrones »
- * cherche en anglais. Les deux sont dans la liste pour surveiller qu'ils
- * mènent au meme livre : au premier lancement du banc, le francais marchait
- * (position 2) et l'anglais non (position 4) — l'inverse de ce qu'on croyait.
+ * LES RECHERCHES DE REFERENCE — figees.
+ * `cible` est le nom de l'auteur du livre qu'on cherchait : il sert a dire a
+ * quelle place il arrive. Les sagas sont la parce que c'est sur elles que la
+ * fusion et les tomes se cassent.
  */
 const RECHERCHES = [
-  { texte: 'game of thrones', cible: 'martin' },
+  { texte: 'harry potter', cible: 'rowling' },
   { texte: 'le seigneur des anneaux', cible: 'tolkien' },
   { texte: 'le trone de fer', cible: 'martin' },
+  { texte: "la quete d'ewilan", cible: 'bottero' },
+  { texte: 'la passe-miroir', cible: 'dabos' },
+  { texte: 'game of thrones', cible: 'martin' },
   { texte: 'germinal', cible: 'zola' },
   { texte: 'les fourmis', cible: 'werber' },
-  { texte: "la quete d'ewilan", cible: 'bottero' },
-  { texte: 'le nom de la rose', cible: 'eco' },
 ];
 
 const PAGES = 2;
@@ -87,17 +80,18 @@ const gris = (t) => `\x1b[90m${t}\x1b[0m`;
 const gras = (t) => `\x1b[1m${t}\x1b[0m`;
 
 /*
- * Reessais PLUS INSISTANTS que ceux de `sources/google.js`, et c'est voulu.
- *
- * L'application s'arrete a cinq essais parce qu'un utilisateur attend devant
- * son ecran : au-dela, mieux vaut un repli qu'une barre de chargement. Ici
- * personne n'attend, et une recherche NON MESUREE est le pire resultat
- * possible — elle laisse un trou dans le tableau de comparaison, ce qui est
- * plus couteux qu'une seconde de plus.
- * Constate au premier lancement : avec les cinq pauses de l'application, deux
- * recherches sur sept sont tombees en 503 et n'ont rien mesure.
+ * Reessais BEAUCOUP plus insistants que ceux de l'application : personne
+ * n'attend devant le banc, et une recherche NON MESUREE laisse un trou dans la
+ * comparaison — ce qui coute plus cher que dix secondes.
+ * Constate le 2026-08-30 : avec huit pauses, Google a rendu 503 sur CINQ
+ * recherches sur huit, et le bilan etait a moitie vide. Un instrument qui ne
+ * mesure qu'une fois sur deux ne permet pas de conclure.
  */
-const PAUSES_REESSAI_MS = [0, 0, 250, 750, 1500, 3000, 5000, 8000];
+const PAUSES_REESSAI_MS = [0, 0, 250, 750, 1500, 3000, 5000, 8000, 12000, 15000, 15000, 15000];
+
+/* Google se braque quand on l'enchaine. Une respiration entre deux recherches
+ * coute quelques secondes et evite la moitie des 503. */
+const RESPIRATION_MS = 1500;
 
 async function googleGet(requete, page) {
   const url = new URL('https://www.googleapis.com/books/v1/volumes');
@@ -113,7 +107,6 @@ async function googleGet(requete, page) {
     try {
       reponse = await fetch(url);
     } catch (e) {
-      // Coupure reseau : meme traitement qu'un 503, elle se rattrape souvent.
       if (essai < PAUSES_REESSAI_MS.length) {
         await new Promise((r) => setTimeout(r, PAUSES_REESSAI_MS[essai] || 300));
         continue;
@@ -131,13 +124,7 @@ async function googleGet(requete, page) {
   }
 }
 
-/*
- * Le meme normaliseur que `sources/google.js`, aux memes pieges : imageLinks
- * arrive en http:// et zoom=1 rend une vignette minuscule ; pageCount vaut 0
- * pour « inconnu » ; industryIdentifiers peut ne porter aucun ISBN.
- * La couverture n'est pas redimensionnee ici : le banc ne l'affiche pas, il
- * compte seulement sa PRESENCE — qui pese dans `completude()`.
- */
+/* Le meme normaliseur que `sources/google.js`, aux memes pieges. */
 function normaliserVolume(item) {
   const vi = item.volumeInfo || {};
   const date = vi.publishedDate || null;
@@ -164,40 +151,66 @@ function normaliserVolume(item) {
   };
 }
 
-function sansAccent(texte) {
-  return String(texte || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-}
-
-/** Ce livre est-il celui qu'on cherchait ? On regarde le nom de l'auteur. */
-function estLaCible(resultat, cible) {
-  return (resultat.auteurs || []).some((a) => sansAccent(a).includes(cible));
-}
-
-function raccourcir(texte, largeur) {
-  const t = String(texte || '');
-  return t.length <= largeur ? t : `${t.slice(0, largeur - 1)}…`;
-}
+const sansAccent = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const estLaCible = (r, cible) => (r.auteurs || []).some((a) => sansAccent(a).includes(cible));
+const court = (t, n) => { const s = String(t || ''); return s.length <= n ? s : `${s.slice(0, n - 1)}…`; };
 
 /*
- * Met l'ecran a plat pour pouvoir compter des positions. Une serie occupe UNE
- * position — c'est ce que voit l'utilisateur : un bloc, pas six cartes.
+ * LE TITRE, REDUIT POUR COMPARAISON. Casse, accents et ponctuation seulement :
+ * on ne coupe RIEN. C'est ce qui permet de dire si deux fiches portent
+ * vraiment le meme titre — et donc si un champ emprunte est legitime.
  */
-function aPlat(ecran) {
-  const lignes = [];
-  ecran.forEach((bloc) => {
-    if (bloc.type === 'serie') {
-      lignes.push({ serie: true, nom: bloc.nom, livres: bloc.tomes });
-    } else {
-      bloc.livres.forEach((l) => lignes.push({ serie: false, livres: [l] }));
+const titreReduit = (t) => sansAccent(t).replace(/[^a-z0-9]+/g, ' ').trim();
+
+/*
+ * L'EXAMEN D'UNE CARTE. Rend la liste de ses defauts, en clair.
+ * `membres` = les fiches brutes que la fusion a reunies sous cette carte.
+ */
+function examiner(carte, membres) {
+  const defauts = [];
+  const titreCarte = titreReduit(carte.titre);
+
+  // 1. La fusion a-t-elle reuni des fiches de titres DIFFERENTS ?
+  const titres = [...new Set(membres.map((m) => titreReduit(m.titre)))];
+  if (titres.length > 1) {
+    defauts.push({
+      type: 'FUSION',
+      detail: `${titres.length} titres differents reunis`,
+      lignes: [...new Set(membres.map((m) => m.titre))],
+    });
+  }
+
+  // 2. La fusion a-t-elle reuni des TOMES differents ?
+  const tomes = [...new Set(membres.map((m) => numeroDeTome(`${m.titre} ${m.sousTitre || ''}`)).filter((n) => n !== null))];
+  if (tomes.length > 1) {
+    defauts.push({ type: 'TOMES', detail: `tomes ${tomes.join(', ')} sur une seule carte`, lignes: [] });
+  }
+
+  // 3. La couverture et le resume viennent-ils d'une fiche d'un AUTRE titre ?
+  //    C'est le defaut rapporte : « la couverture est parfois completement
+  //    fausse, la description ne correspond pas au titre ».
+  for (const [champ, valeur] of [['couverture', carte.couvertureUrl], ['resume', carte.resume]]) {
+    if (!valeur) continue;
+    const donneur = membres.find((m) => m[champ === 'couverture' ? 'couvertureUrl' : 'resume'] === valeur);
+    if (donneur && titreReduit(donneur.titre) !== titreCarte) {
+      defauts.push({
+        type: 'EMPRUNT',
+        detail: `${champ} prise sur « ${court(donneur.titre, 60)} »`,
+        lignes: [],
+      });
     }
-  });
-  return lignes;
+  }
+
+  // 4. Aucune image du tout.
+  if (!carte.couvertureUrl) defauts.push({ type: 'SANS IMAGE', detail: '', lignes: [] });
+
+  return defauts;
 }
 
 // ---------------------------------------------------------------------------
 
 console.log(`\n${gras("Banc d'essai de la recherche")} — ${new Date().toLocaleString('fr-FR')}`);
-console.log(gris(`${PAGES} pages chargees par recherche, comme l'ecran apres un defilement.`));
+console.log(gris(`${PAGES} pages par recherche. On verifie LA CARTE, pas seulement le rang.`));
 if (!CLE) {
   console.log(rouge('\nCle Google Books absente de client/.env — Google rejettera tout.\n'));
   process.exit(0);
@@ -206,110 +219,102 @@ if (!CLE) {
 const bilan = [];
 
 for (const { texte, cible } of RECHERCHES) {
-  console.log(`\n${gras(`« ${texte} »`)}  ${gris(`— on cherche le livre de ${cible}`)}`);
+  console.log(`\n${gras(`« ${texte} »`)} ${gris(`— on cherche le livre de ${cible}`)}`);
 
   let brut = [];
   let erreur = null;
-  const t0 = Date.now();
   try {
     for (let p = 0; p < PAGES; p += 1) {
       const donnees = await googleGet(texte, p);
       brut.push(...(donnees.items || []).map(normaliserVolume));
     }
   } catch (e) {
-    erreur = e.message === 'QUOTA'
-      ? 'quota Google epuise pour aujourd hui'
-      : e.message;
+    erreur = e.message === 'QUOTA' ? 'quota Google epuise' : e.message;
   }
-  const ms = Date.now() - t0;
 
   if (erreur) {
     console.log(`  ${rouge(erreur)}`);
-    bilan.push({ texte, cible, position: null, erreur });
+    bilan.push({ texte, erreur });
     if (erreur.startsWith('quota')) break;
     continue;
   }
 
-  // ---- la vraie chaine d'affichage, avec le vrai code -----------------------
-  /*
-   * Open Library est facultative ici comme dans l'application : si elle ne
-   * repond pas, le banc mesure le classement SANS elle plutot que de renoncer
-   * a la recherche. La ligne « notoriete » du compte-rendu le dit.
-   */
   let oeuvres = [];
   try { oeuvres = await oeuvresNotoires(texte); } catch { oeuvres = []; }
+
   const notes = attribuerNotoriete(brut, oeuvres);
-  const reconnus = notes.filter((r) => r.lecteurs > 0).length;
   const cartes = fusionnerDoublons(notes, texte);
-  const ecran = organiserLEcran(cartes, texte);
-  const lignes = aPlat(ecran);
 
-  const position = lignes.findIndex((l) => l.livres.some((x) => estLaCible(x, cible)));
-
-  console.log(gris(
-    `  ${brut.length} volumes -> ${cartes.length} cartes -> ${lignes.length} lignes d'ecran`
-    + `   (${ms} ms)`,
-  ));
-  console.log(gris(
-    oeuvres.length === 0
-      ? '  notoriete : Open Library n a rien rendu — classement sans elle'
-      : `  notoriete : ${oeuvres.length} oeuvres connues, ${reconnus}/${brut.length} volumes reconnus`
-        + `   (la plus lue : ${oeuvres[0].titre} — ${oeuvres[0].lecteurs.toLocaleString('fr-FR')} lecteurs)`,
-  ));
-
-  lignes.slice(0, 8).forEach((ligne, i) => {
-    const rang = String(i + 1).padStart(2, ' ');
-    const porteLaCible = ligne.livres.some((x) => estLaCible(x, cible));
-    const marque = porteLaCible ? vert(' <-- ce qu on cherchait') : '';
-
-    if (ligne.serie) {
-      const note = Math.max(...ligne.livres.map((t) => scorePertinence(t, texte)));
-      console.log(
-        `  ${rang}. ${jaune('[serie]')} ${gras(raccourcir(ligne.nom, 44))}`
-        + gris(`  ${ligne.livres.length} tomes, note ${note}`) + marque,
-      );
-      return;
-    }
-
-    const l = ligne.livres[0];
-    const note = scorePertinence(l, texte);
-    const auteur = (l.auteurs || [])[0] || '?';
-    const editions = Array.isArray(l.clesSource) ? l.clesSource.length : 1;
-    console.log(
-      `  ${rang}. ${gris(String(note).padStart(3, ' '))} ${raccourcir(l.titre, 44).padEnd(45)}`
-      + gris(`${raccourcir(auteur, 18).padEnd(19)}${String(l.lecteurs || 0).padStart(6)} lect. ${l.langue || '--'}`) + marque,
-    );
+  // Retrouver, pour chaque carte, les fiches brutes qu'elle a absorbees.
+  const parCle = new Map(brut.map((r) => [r.cleSource, r]));
+  const examens = cartes.map((c) => {
+    const membres = (c.clesSource || [c.cleSource]).map((k) => parCle.get(k)).filter(Boolean);
+    return { carte: c, membres, defauts: examiner(c, membres) };
   });
 
-  if (position === -1) {
-    console.log(`  ${rouge('ABSENT')} ${gris('— le livre cherche n est nulle part dans ces 2 pages')}`);
-  } else if (position >= 8) {
-    console.log(`  ${gris(`… il arrive en position ${position + 1}, hors des 8 premieres lignes`)}`);
-  }
+  const fusions = examens.filter((e) => e.defauts.some((d) => d.type === 'FUSION')).length;
+  const emprunts = examens.filter((e) => e.defauts.some((d) => d.type === 'EMPRUNT')).length;
+  const melTomes = examens.filter((e) => e.defauts.some((d) => d.type === 'TOMES')).length;
+  const sansImage = examens.filter((e) => e.defauts.some((d) => d.type === 'SANS IMAGE')).length;
 
-  bilan.push({ texte, cible, position: position === -1 ? null : position + 1, erreur: null });
+  const aPlat = [];
+  examens.forEach((e) => aPlat.push(e));
+  const position = aPlat
+    .sort((a, b) => scorePertinence(b.carte, texte) - scorePertinence(a.carte, texte))
+    .findIndex((e) => estLaCible(e.carte, cible));
+
+  console.log(gris(
+    `  ${brut.length} volumes -> ${cartes.length} cartes`
+    + `   | notoriete : ${oeuvres.length ? `${oeuvres.length} oeuvres` : rouge('Open Library muette')}`,
+  ));
+
+  const etat = (n, libelle) => (n === 0 ? vert(`0 ${libelle}`) : rouge(`${n} ${libelle}`));
+  console.log(
+    `  ${etat(fusions, 'fusion(s) de titres differents')}   `
+    + `${etat(emprunts, 'champ(s) emprunte(s) a un autre livre')}   `
+    + `${etat(melTomes, 'melange(s) de tomes')}   `
+    + `${sansImage ? jaune(`${sansImage} sans image`) : vert('0 sans image')}`,
+  );
+
+  // Le detail des cartes fautives — c'est ce qu'on vient chercher.
+  examens.filter((e) => e.defauts.some((d) => d.type !== 'SANS IMAGE')).slice(0, 3).forEach((e) => {
+    console.log(`\n  ${rouge('CARTE FAUTIVE')} : « ${court(e.carte.titre, 56)} »  ${gris(`tome ${numeroDeTome(e.carte.titre) ?? '—'}`)}`);
+    e.defauts.filter((d) => d.type !== 'SANS IMAGE').forEach((d) => {
+      console.log(`      ${jaune(d.type)} — ${d.detail}`);
+      d.lignes.forEach((l) => console.log(gris(`         · ${court(l, 72)}`)));
+    });
+  });
+
+  bilan.push({
+    texte, cible, cartes: cartes.length, fusions, emprunts, melTomes, sansImage,
+    position: position === -1 ? null : position + 1,
+  });
 }
 
 // ---------------------------------------------------------------------------
-// LE TABLEAU QUI COMPTE — un chiffre par recherche, comparable avant/apres.
-// ---------------------------------------------------------------------------
 
-console.log(`\n${gras('Place du livre cherche')}`);
-console.log(gris('  Le critere de la mission : dans les 3 premieres lignes, sans defiler.\n'));
+console.log(`\n\n${gras('BILAN')}`);
+console.log(gris('  defauts = fusions fausses + champs empruntes + melanges de tomes\n'));
+console.log(gris('  recherche                    cartes  defauts  sans image  place du livre'));
 
-let atteints = 0;
-bilan.forEach(({ texte, cible, position, erreur }) => {
-  const nom = `« ${texte} »`.padEnd(28);
-  if (erreur) { console.log(`  ${nom}${rouge(erreur)}`); return; }
-  if (position === null) { console.log(`  ${nom}${rouge('absent')}  ${gris(`(${cible})`)}`); return; }
-  if (position <= 3) { atteints += 1; console.log(`  ${nom}${vert(`position ${position}`)}  ${gris(`(${cible})`)}`); return; }
-  console.log(`  ${nom}${jaune(`position ${position}`)}  ${gris(`(${cible})`)}`);
+let totalDefauts = 0;
+bilan.forEach((b) => {
+  if (b.erreur) { console.log(`  ${`« ${b.texte} »`.padEnd(30)}${rouge(b.erreur)}`); return; }
+  const d = b.fusions + b.emprunts + b.melTomes;
+  totalDefauts += d;
+  const place = b.position === null ? rouge('absent') : (b.position <= 3 ? vert(`${b.position}`) : jaune(`${b.position}`));
+  console.log(
+    `  ${`« ${b.texte} »`.padEnd(30)}${String(b.cartes).padStart(5)}`
+    + `${(d === 0 ? vert(String(d)) : rouge(String(d))).padStart(18)}`
+    + `${String(b.sansImage).padStart(13)}`
+    + `${place.padStart(19)}`,
+  );
 });
 
 console.log(
-  `\n  ${gras(`${atteints} / ${bilan.length}`)} dans les trois premieres lignes.`,
+  `\n  ${totalDefauts === 0 ? vert('Aucun defaut de carte.') : rouge(`${totalDefauts} carte(s) fautive(s).`)}`,
 );
-console.log(gris('  Un chiffre qui ne bouge pas apres un changement de classement veut dire\n'
-  + '  que le changement n a rien apporte — ou qu il n est pas actif.\n'));
+console.log(gris('  Tant que les corrections ne sont pas faites, un banc qui ne signale\n'
+  + '  rien est un banc casse — pas une application saine.\n'));
 
 process.exit(0);

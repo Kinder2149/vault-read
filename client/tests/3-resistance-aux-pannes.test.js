@@ -17,10 +17,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const faux = new Map();
+/*
+ * `keys` et `delMany` sont la parce que « vider le cache » en a besoin : il
+ * enumere les cles pour ne jeter que les siennes. Un double incomplet aurait
+ * fait passer le bouton pour casse alors qu'il fonctionne.
+ */
 vi.mock('idb-keyval', () => ({
   get: async (k) => faux.get(k),
   set: async (k, v) => { faux.set(k, v); },
   del: async (k) => { faux.delete(k); },
+  keys: async () => [...faux.keys()],
+  delMany: async (cles) => { cles.forEach((k) => faux.delete(k)); },
 }));
 vi.mock('@capacitor/core', () => ({ Capacitor: { getPlatform: () => 'web' } }));
 
@@ -350,7 +357,16 @@ describe('Le cache survit a la fermeture de l-application', () => {
    * tombait. On rappelait Google alors qu'on avait la reponse sous la main.
    */
   it('la meme recherche, apres relance, ne rappelle PAS la source', async () => {
-    reseau(() => ok(reponseGoogle(6)));
+    /*
+     * Open Library repond ICI comme dans la vraie vie. Sans cela, elle
+     * tombait dans le chemin d'echec — dont la memoire ne survit PAS a une
+     * relance, par conception — et le test comptait un appel de plus.
+     * En la faisant repondre, on verifie du meme coup que le cache de
+     * notoriete (sept jours, sur disque) survit lui aussi a la fermeture.
+     */
+    reseau((n, url) => (url.includes('openlibrary.org/search')
+      ? ok({ docs: [{ key: '/works/OL1W', title: 'Livre 0', author_name: ['Auteur 0'], readinglog_count: 10 }] })
+      : ok(reponseGoogle(6))));
     let books = await import('../src/books.js');
     const premier = await books.rechercher('dune', 'titre');
     expect(premier.resultats).toHaveLength(6);
@@ -577,5 +593,123 @@ describe('La notoriete des oeuvres, et sa resistance', () => {
 
     await books.rechercher('9782070368228', 'isbn');
     expect(vus.ol).toBe(0);
+  });
+});
+
+/*
+ * LE CACHE NE STOCKE QUE DU BRUT (M2, 2026-08-30)
+ *
+ * Le defaut repare : l'archive de 24 h gardait les resultats DEJA classes.
+ * Une recherche deja faite ressortait donc avec le classement de la version
+ * precedente, et toute correction restait invisible une journee entiere.
+ * Mesure sur le telephone : la page 1 sortait de la conserve et les pages
+ * suivantes etaient cherchees en direct — d'ou « les vrais resultats
+ * n'apparaissent qu'en defilant ».
+ */
+describe('Le cache de recherche ne fige plus le classement', () => {
+  const oeuvresOL = {
+    docs: [{ key: '/works/OL9W', title: 'Livre 0', author_name: ['Auteur 0'], readinglog_count: 4242 }],
+  };
+
+  function sources() {
+    const vus = { google: 0, ol: 0 };
+    reseau((n, url) => {
+      if (url.includes('openlibrary.org/search')) { vus.ol += 1; return ok(oeuvresOL); }
+      if (url.includes('bnf.fr')) return ok({});
+      vus.google += 1;
+      return ok(reponseGoogle(3));
+    });
+    return vus;
+  }
+
+  it('ARCHIVE DU BRUT : ni notoriete ni fusion ne sont enregistrees', async () => {
+    sources();
+    const books = await import('../src/books.js');
+    await books.rechercher('archive-brute', 'titre');
+    // L'archivage est volontairement NON attendu (il ne doit pas retarder
+    // l'affichage) : on laisse passer un tour de boucle avant de le lire.
+    await new Promise((r) => setTimeout(r, 0));
+
+    const entree = faux.get('recherche:titre:archive-brute');
+    expect(entree).toBeTruthy();
+    // Le classement ne doit PAS etre dans l'archive : il se recalcule.
+    expect(entree.resultats.every((r) => r.rangAuteur === undefined)).toBe(true);
+    // Ni la fusion : l'archive garde ce que la source a rendu.
+    expect(entree.resultats).toHaveLength(3);
+  });
+
+  it('RECLASSE une recherche servie depuis l-archive', async () => {
+    // C'est le coeur de la correction : on pose une archive fraiche SANS
+    // classement — comme celles ecrites par la version precedente — et la
+    // recherche doit en ressortir classee.
+    faux.set('recherche:titre:vieille', {
+      pose: Date.now(),
+      resultats: [
+        { cleSource: 'gb:1', titre: 'Livre 0', auteurs: ['Auteur 0'], categories: [] },
+        { cleSource: 'gb:2', titre: 'Livre 1', auteurs: ['Auteur 1'], categories: [] },
+      ],
+    });
+    const vus = sources();
+    const books = await import('../src/books.js');
+
+    const { resultats } = await books.rechercher('vieille', 'titre');
+    expect(vus.google).toBe(0);                 // l'archive a bien servi
+    const classe = resultats.find((r) => r.auteurs.includes('Auteur 0'));
+    expect(classe.rangAuteur).toBe(0);          // et le classement est neuf
+    expect(classe.lecteurs).toBe(4242);
+  });
+
+  it('ne rappelle PAS Open Library quand elle vient de ne rien rendre', async () => {
+    // Depuis que le classement se recalcule a chaque affichage, une recherche
+    // repetee redemandait la notoriete a chaque fois. On memorise donc aussi
+    // les echecs — une heure, pas sept jours.
+    const vus = { ol: 0 };
+    reseau((n, url) => {
+      if (url.includes('openlibrary.org/search')) { vus.ol += 1; return ok({ docs: [] }); }
+      if (url.includes('bnf.fr')) return ok({});
+      return ok(reponseGoogle(2));
+    });
+    const books = await import('../src/books.js');
+
+    await books.rechercher('muette', 'titre');
+    await books.rechercher('muette', 'titre');
+    expect(vus.ol).toBe(1);
+  });
+});
+
+/*
+ * VIDER LE CACHE — le bouton qui manquait. Vider les donnees de l'application
+ * depuis Android aurait emporte la bibliotheque : ce bouton ne touche QUE le
+ * cache.
+ */
+describe('Vider le cache de recherche', () => {
+  it('jette les recherches archivees ET la notoriete', async () => {
+    faux.set('recherche:titre:a', { pose: Date.now(), resultats: [] });
+    faux.set('recherche:titre:b', { pose: Date.now(), resultats: [] });
+    faux.set('notoriete:a', { pose: Date.now(), oeuvres: [] });
+    const books = await import('../src/books.js');
+
+    const jetees = await books.viderCacheRecherche();
+    expect(jetees).toBe(3);
+    expect(faux.has('recherche:titre:a')).toBe(false);
+    expect(faux.has('notoriete:a')).toBe(false);
+  });
+
+  it('NE TOUCHE NI LA BIBLIOTHEQUE NI L-HISTORIQUE', async () => {
+    // La regle qui justifie l'existence du bouton.
+    faux.set('db:lecture', 'la base entiere');
+    faux.set('historiqueRecherches', ['dune']);
+    faux.set('recherche:titre:a', { pose: Date.now(), resultats: [] });
+    const books = await import('../src/books.js');
+
+    await books.viderCacheRecherche();
+    expect(faux.get('db:lecture')).toBe('la base entiere');
+    expect(faux.get('historiqueRecherches')).toEqual(['dune']);
+    expect(faux.has('recherche:titre:a')).toBe(false);
+  });
+
+  it('ne se plaint pas quand il n-y a rien a vider', async () => {
+    const books = await import('../src/books.js');
+    await expect(books.viderCacheRecherche()).resolves.toBe(0);
   });
 });

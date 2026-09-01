@@ -125,6 +125,16 @@ export async function effacerHistoriqueRecherches() {
   return books.oublierHistorique();
 }
 
+/*
+ * Vide le cache de recherche (M2). Ne touche NI la bibliotheque, NI
+ * l'historique : c'est tout l'interet du bouton. Vider les donnees de
+ * l'application depuis Android aurait emporte les livres avec.
+ * @returns {Promise<number>} combien de recherches archivees ont ete jetees
+ */
+export async function viderCacheRecherche() {
+  return books.viderCacheRecherche();
+}
+
 /**
  * Résout l'identité d'œuvre d'un résultat et complète son résumé.
  * @returns {Promise<{identite: Identite, resultat: ResultatRecherche}>}

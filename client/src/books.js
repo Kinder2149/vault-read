@@ -267,16 +267,46 @@ function fondre(groupe, requete) {
  * @returns {Promise<ResultatRecherche[]>}
  */
 export async function rechercher(texte, mode, page = 0, auteur = '') {
-  const brut = await rechercherBrut(texte, mode, page, auteur);
+  const requete = String(texte || '').trim();
+
   /*
-   * La fusion est appliquee A LA SORTIE, jamais avant le cache : l'archive
-   * garde les resultats tels que la source les a rendus. Un jour ou la regle
-   * de fusion changera, les archives deja posees en beneficieront sans avoir
-   * a etre jetees.
+   * LA NOTORIETE PART D'ICI, ET NON PLUS DE `rechercherBrut` (M2).
+   *
+   * Elle doit toujours se recouvrir avec l'appel Google — d'ou son lancement
+   * AVANT lui — mais elle ne doit plus etre ARCHIVEE avec les resultats. Voir
+   * le commentaire ci-dessous : c'est tout l'objet de cette correction.
+   */
+  const promesseNotoriete = (mode === 'titre' && requete) ? notorieteDe(requete) : null;
+
+  const brut = await rechercherBrut(texte, mode, page, auteur);
+
+  /*
+   * TOUT CE QUI SE DECIDE SE DECIDE ICI, A LA SORTIE, ET RIEN N'EST ARCHIVE
+   * DEJA TRANSFORME (M2).
+   *
+   * L'intention etait deja ecrite pour la fusion — « l'archive garde les
+   * resultats tels que la source les a rendus » — mais la notoriete l'a
+   * violee : elle etait attachee AVANT l'archivage. Consequence mesuree sur le
+   * telephone : une recherche deja faite ressortait de l'archive de 24 h avec
+   * le classement de la version PRECEDENTE, et la correction restait invisible
+   * une journee entiere. L'utilisateur voyait donc sa page 1 en conserve et
+   * ses pages suivantes fraiches — d'ou « les vrais resultats n'apparaissent
+   * qu'en defilant ».
+   *
+   * Regle desormais tenue des deux cotes : l'archive ne contient QUE ce que
+   * les sources ont rendu ; le classement et la fusion se recalculent a chaque
+   * affichage. Toute correction se voit immediatement, y compris sur les
+   * recherches deja archivees.
+   *
    * Mode ISBN excepte : un ISBN designe UNE edition precise, il n'y a rien a
    * regrouper et fusionner y serait mentir.
    */
   if (mode === 'isbn') return { ...brut, nbSource: brut.resultats.length };
+
+  const classes = attribuerNotoriete(
+    brut.resultats,
+    promesseNotoriete ? await promesseNotoriete : [],
+  );
 
   /*
    * `nbSource` = combien la SOURCE a rendu, avant fusion. L'ecran en a besoin
@@ -289,8 +319,36 @@ export async function rechercher(texte, mode, page = 0, auteur = '') {
   return {
     ...brut,
     nbSource: brut.resultats.length,
-    resultats: fusionnerDoublons(brut.resultats, texte),
+    resultats: fusionnerDoublons(classes, texte),
   };
+}
+
+/*
+ * VIDER LE CACHE DE RECHERCHE (M2).
+ *
+ * Sans ce bouton, une correction du classement reste invisible pendant 24 h
+ * sur les recherches deja faites : c'est ce qui a fait tester une version
+ * ancienne en croyant tester la nouvelle. Vider les donnees de l'application
+ * n'etait PAS une solution — la bibliotheque vit dans le meme stockage et
+ * aurait ete perdue avec.
+ *
+ * Ne touche donc QUE le cache : les resultats archives, la notoriete, et le
+ * cache memoire. Ni la base, ni l'historique des recherches, qui est une
+ * commodite que personne ne demande a effacer en meme temps.
+ */
+export async function viderCacheRecherche() {
+  cacheRecherche.clear();
+  echecsNotoriete.clear();
+  try {
+    const { keys, delMany } = await import('idb-keyval');
+    const toutes = await keys();
+    const aJeter = toutes.filter((k) => typeof k === 'string'
+      && (k.startsWith(PREFIXE_ARCHIVE) || k.startsWith(PREFIXE_NOTORIETE)));
+    if (aJeter.length) await delMany(aJeter);
+    return aJeter.length;
+  } catch {
+    return 0;   // IndexedDB indisponible : le cache memoire est deja vide
+  }
 }
 
 async function rechercherBrut(texte, mode, page = 0, auteur = '') {
@@ -352,37 +410,6 @@ async function rechercherBrut(texte, mode, page = 0, auteur = '') {
     ? interrogerBnf(requete, mode, auteur).catch(() => [])
     : null;
 
-  /*
-   * OPEN LIBRARY PART AUSSI, ET EN MEME TEMPS (mission V2, M3).
-   *
-   * Elle n'apporte ni fiche ni couverture : elle apporte l'ORDRE. Google ne
-   * sait pas dire qu'une oeuvre est connue — d'ou les essais SUR « Game of
-   * Thrones » ranges devant le roman. Open Library indexe des oeuvres et
-   * publie leur nombre de lecteurs : c'est le `popularity` de TMDB, que ce
-   * projet s'etait cru prive (arbitrage 16, infirme par la mesure).
-   *
-   * MEME DISCIPLINE QUE LA BnF :
-   *  - lancee AVANT l'appel Google, pour que les deux attentes se recouvrent ;
-   *  - FACULTATIVE DE BOUT EN BOUT. Si elle ne repond pas, la recherche
-   *    s'affiche exactement comme avant. `notorieteDe` ne rejette jamais :
-   *    l'absence d'ordre n'est pas une panne, et il n'y a aucun repli a ecrire.
-   *
-   * MAIS SUR TOUTES LES PAGES, contrairement a la BnF. C'est le cache de
-   * notoriete (sept jours, plus bas) qui le permet : au-dela de la premiere
-   * page l'appel ne coute plus rien. Et il le FAUT — la notoriete n'entrait
-   * sinon que dans les vingt premiers volumes, si bien qu'un tome trouve en
-   * page 2 restait non classe et se rangeait au hasard parmi des cartes, elles,
-   * classees. C'est exactement le defaut que la tranche 3 avait deja combattu :
-   * un ecran qui se reorganise sous les yeux au fil du defilement.
-   *
-   * Mode ISBN excepte : un ISBN designe une edition precise, il n'y a rien a
-   * classer. Mode auteur excepte aussi : l'ordre y vient du regroupement par
-   * ecrivain, pas d'un score (voir `trierResultats`).
-   */
-  const promesseNotoriete = mode === 'titre'
-    ? notorieteDe(requete)
-    : null;
-
   let resultats;
   try {
     resultats = await interroger(requete, mode, page, auteur);
@@ -437,13 +464,10 @@ async function rechercherBrut(texte, mode, page = 0, auteur = '') {
    */
   const completes = completerDepuisBnf(resultats, promesseBnf ? await promesseBnf : []);
   /*
-   * La notoriete s'attache AVANT la fusion et avant l'archivage : c'est le
-   * score qui choisit, dans un groupe de doublons, la fiche qui fera la carte
-   * (§ `fondre`), et il doit donc deja la connaitre. Archivee avec le reste,
-   * la recherche rejouee demain sortira classee sans rappeler personne.
+   * On archive du BRUT : ni notoriete, ni fusion (M2). Elles se recalculent a
+   * l'affichage, dans `rechercher`. Voir le commentaire la-bas.
    */
-  const classes = attribuerNotoriete(completes, promesseNotoriete ? await promesseNotoriete : []);
-  const illustres = classes.map(avecCouvertureDeRepli);
+  const illustres = completes.map(avecCouvertureDeRepli);
   const pose = Date.now();
   cacheRecherche.set(cle, { pose, resultats: illustres });
   // Volontairement non attendu : archiver ne doit pas retarder l'affichage.
@@ -804,6 +828,30 @@ async function ecrireArchive(cle, pose, resultats) {
  * appliquee a une donnee qui, elle, ne se perime pratiquement pas.
  */
 const NOTORIETE_FRAICHE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/*
+ * LES ECHECS SE MEMORISENT EN MEMOIRE, ET DEUX MINUTES.
+ *
+ * Il en faut un : depuis que le classement se recalcule a l'affichage (M2),
+ * CHAQUE recherche demande la notoriete — y compris celles servies depuis le
+ * cache. Sans cela, une recherche repetee pendant qu'Open Library est muette
+ * la rappelle a chaque fois.
+ *
+ * Mais PAS sur disque, et PAS longtemps. Premiere version ecrite le
+ * 2026-08-30 : l'echec etait archive une heure. Verifie dans l'application
+ * immediatement apres — « harry potter » a rendu trois essais devant Rowling,
+ * parce qu'UN appel lent avait ete enregistre comme « rien a dire » et gelait
+ * le classement pour l'heure suivante. Open Library repondait pourtant en
+ * 535 ms a la requete suivante.
+ *
+ * Deux enseignements, appliques ici :
+ *  - un echec n'est pas une donnee : il ne va pas dans le stockage durable,
+ *    il meurt avec la session ;
+ *  - deux minutes suffisent a ne pas harceler la source ; au-dela, mieux vaut
+ *    retenter, parce que ses pannes sont courtes et frequentes.
+ */
+const NOTORIETE_ECHEC_MS = 2 * 60 * 1000;
+const echecsNotoriete = new Map();
 const PREFIXE_NOTORIETE = 'notoriete:';
 
 async function lireNotoriete(cle, duree) {
@@ -812,7 +860,7 @@ async function lireNotoriete(cle, duree) {
     const entree = await get(PREFIXE_NOTORIETE + cle);
     if (!entree) return null;
     if (duree !== Infinity && Date.now() - entree.pose > duree) return null;
-    return entree.oeuvres;
+    return entree.oeuvres || [];
   } catch {
     return null;   // IndexedDB indisponible : on demandera a la source
   }
@@ -834,16 +882,32 @@ async function notorieteDe(requete) {
   const cle = requete.trim().toLowerCase();
 
   const fraiche = await lireNotoriete(cle, NOTORIETE_FRAICHE_MS);
-  if (fraiche) return fraiche;
+  if (fraiche && fraiche.length) return fraiche;
+
+  // Un echec tout recent : on ne rappelle pas la source dans les deux minutes.
+  const echec = echecsNotoriete.get(cle);
+  if (echec && Date.now() - echec < NOTORIETE_ECHEC_MS) return [];
 
   try {
     const oeuvres = await ol.oeuvresNotoires(requete);
-    // On n'ecrit pas une reponse vide : elle empecherait de redemander pendant
-    // sept jours ce qu'on n'a simplement pas reussi a obtenir.
-    if (oeuvres.length) void ecrireNotoriete(cle, oeuvres);
-    return oeuvres;
+    if (oeuvres.length) {
+      echecsNotoriete.delete(cle);
+      void ecrireNotoriete(cle, oeuvres);
+      return oeuvres;
+    }
+    // Une reponse vide n'est pas une reponse : on la traite comme un echec,
+    // et surtout on ne l'ecrit PAS sur disque.
+    echecsNotoriete.set(cle, Date.now());
+    return [];
   } catch {
-    return (await lireNotoriete(cle, Infinity)) || [];
+    /*
+     * Panne. Une notoriete PERIMEE vaut infiniment mieux que rien — Martin
+     * ecrivait deja « Game of Thrones » la semaine derniere.
+     */
+    const vieux = await lireNotoriete(cle, Infinity);
+    if (vieux && vieux.length) return vieux;
+    echecsNotoriete.set(cle, Date.now());
+    return [];
   }
 }
 
