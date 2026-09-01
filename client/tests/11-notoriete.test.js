@@ -65,6 +65,34 @@ describe('Rapprocher un livre de son auteur chez Open Library', () => {
     expect(r.rangAuteur).toBe(1);
   });
 
+  it('reconnait le MEME ecrivain abrege autrement', () => {
+    /*
+     * Open Library ecrit « J.R.R. Tolkien », Google « John Ronald Reuel
+     * Tolkien ». Mesure du 2026-08-30 : la moitie des editions de Tolkien ne
+     * recevaient aucune notoriete faute de ce rapprochement.
+     */
+    const oeuvres = [oeuvre('The Fellowship of the Ring', ['J.R.R. Tolkien'], 2472)];
+    const fiches = [
+      { cleSource: 'gb:1', titre: 'Le Seigneur des anneaux', auteurs: ['John Ronald Reuel Tolkien'] },
+      { cleSource: 'gb:2', titre: 'Les deux tours', auteurs: ['Tolkien, J. R. R.'] },
+    ];
+    attribuerNotoriete(fiches, oeuvres).forEach((r) => expect(r.rangAuteur).toBe(0));
+  });
+
+  it('GARDE LES INITIALES — un homonyme ne herite pas de la notoriete', () => {
+    /*
+     * Sur le seul nom de famille, « Martin » rapprocherait George R. R.
+     * Martin de n'importe quel Martin, et la notoriete de « game of thrones »
+     * atterrirait sur un essayiste homonyme.
+     */
+    const oeuvres = [oeuvre('A Game of Thrones', ['George R. R. Martin'], 13397)];
+    const [autre] = attribuerNotoriete(
+      [{ cleSource: 'gb:1', titre: 'Un essai', auteurs: ['Claire Martin'] }],
+      oeuvres,
+    );
+    expect(autre.rangAuteur).toBeUndefined();
+  });
+
   it('NE TOUCHE PAS un livre dont l-auteur est inconnu d-Open Library', () => {
     const essai = { cleSource: 'gb:1', titre: 'Game of Thrones', auteurs: ['Cédric Delaunay'] };
     const [r] = attribuerNotoriete([essai], [oeuvre('A Game of Thrones', ['George R. R. Martin'], 13397)]);

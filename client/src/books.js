@@ -222,6 +222,54 @@ function cleAuteur(nom) {
 }
 
 /*
+ * LE MEME ECRIVAIN, ECRIT AUTREMENT — nom de famille et initiales.
+ *
+ * `cleAuteur` trie les mots : elle rapproche « Emile Zola » de « Zola,
+ * Emile », ce qui suffisait tant qu'on comparait deux fiches de Google. Elle
+ * ne suffit plus depuis qu'on rapproche Google et Open Library, qui abregent
+ * differemment. Mesure du 2026-08-30 sur « le seigneur des anneaux » : Open
+ * Library ecrit « J.R.R. Tolkien », Google « John Ronald Reuel Tolkien », et
+ * la moitie des editions de Tolkien ne recevaient AUCUNE notoriete.
+ *
+ * On fabrique donc une seconde cle : le nom de famille, plus les initiales
+ * des prenoms.
+ *   « J.R.R. Tolkien »              -> tolkien|jrr
+ *   « John Ronald Reuel Tolkien »   -> tolkien|jrr
+ *   « Zola, Emile » et « Emile Zola » -> zola|e
+ *
+ * Les INITIALES sont gardees, et c'est deliberé : sur le seul nom de famille,
+ * « Martin » rapprocherait George R. R. Martin de n'importe quel Martin — et
+ * la notoriete de « game of thrones » atterrirait sur un homonyme.
+ *
+ * La virgule decide du nom de famille quand elle est la (« Zola, Emile ») ;
+ * sinon c'est le dernier mot. Un nom d'un seul mot n'a pas d'initiales et se
+ * compare tel quel.
+ */
+function clesAuteur(nom) {
+  const cles = new Set();
+  const complet = cleAuteur(nom);
+  if (complet) cles.add(complet);
+
+  const brut = String(nom || '');
+  const avantVirgule = brut.includes(',') ? brut.split(',')[0] : null;
+  const mots = normaliser(brut, false).split('-').filter(Boolean);
+  if (mots.length === 0) return cles;
+
+  const famille = avantVirgule
+    ? normaliser(avantVirgule, false).split('-').filter(Boolean).join('')
+    : mots[mots.length - 1];
+  if (!famille) return cles;
+
+  const autres = avantVirgule
+    ? mots.filter((m) => !famille.startsWith(m) || m.length > 2)
+      .filter((m) => !normaliser(avantVirgule, false).split('-').includes(m))
+    : mots.slice(0, -1);
+  const initiales = autres.map((m) => m[0]).join('');
+  cles.add(`${famille}|${initiales}`);
+  return cles;
+}
+
+/*
  * Ce qui se complete d'une fiche a l'autre. `titre`, `sousTitre` et
  * `cleSource` n'y sont PAS : ils font l'identite de la carte et viennent de la
  * fiche retenue, sans quoi on afficherait le titre de l'une et l'annee de
@@ -713,15 +761,14 @@ export function attribuerNotoriete(resultats, oeuvres) {
    */
   const parAuteur = new Map();
   oeuvres.forEach((o, rang) => {
-    (o.auteurs || []).forEach((nom) => {
-      const cle = cleAuteur(nom);
+    (o.auteurs || []).forEach((nom) => clesAuteur(nom).forEach((cle) => {
       if (!cle) return;
       // Un auteur peut porter plusieurs oeuvres de la reponse (Martin en a six
       // sur dix). On garde la MIEUX CLASSEE : c'est elle qui dit la place de
       // l'ecrivain dans la reponse a cette recherche.
       const connu = parAuteur.get(cle);
       if (!connu || rang < connu.rang) parAuteur.set(cle, { rang, lecteurs: o.lecteurs });
-    });
+    }));
   });
   if (parAuteur.size === 0) return resultats || [];
 
@@ -729,10 +776,10 @@ export function attribuerNotoriete(resultats, oeuvres) {
     // Un livre a plusieurs auteurs : le mieux classe decide. Une edition
     // annotee « Zola, Emile / Untel » ne doit pas perdre Zola en chemin.
     let meilleur = null;
-    (r.auteurs || []).forEach((nom) => {
-      const trouve = parAuteur.get(cleAuteur(nom));
+    (r.auteurs || []).forEach((nom) => clesAuteur(nom).forEach((cle) => {
+      const trouve = parAuteur.get(cle);
       if (trouve && (!meilleur || trouve.rang < meilleur.rang)) meilleur = trouve;
-    });
+    }));
     if (!meilleur) return r;
     /*
      * `rangAuteur` est ce qui PESE dans le score ; `lecteurs` n'est la que pour

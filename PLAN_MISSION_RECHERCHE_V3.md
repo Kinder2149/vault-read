@@ -262,17 +262,48 @@ sous-titre. Vérifié qu'on n'invente toujours rien — `1984`,
 
 **288 vérifications** (5 nouvelles).
 
-### M6 — Open Library choisit les œuvres
+### M6 — ANNULÉE le 2026-08-30 : filtrer effacerait de vrais livres
 
-**Ce qui change.** Open Library ne décide plus seulement de l'ordre, mais de
-**ce qui entre** dans la liste. C'est ce qui écarte les carnets de notes et les
-making-of.
+**Ce que cette mission devait faire.** Laisser Open Library décider non
+seulement de l'ordre, mais de **ce qui entre** dans la liste.
 
-**Test.** « harry potter » ne rend que des livres de Rowling en tête.
+**Le risque annoncé s'est réalisé, et il est rédhibitoire.** Mesure de ce que
+le filtre écarterait :
 
-**Risque, à surveiller.** Filtrer peut faire disparaître un livre légitime
-qu'Open Library ignore. À mesurer au banc avant de l'activer : combien de
-résultats seraient écartés, et lesquels.
+```
+recherche                    cartes  gardees  ECARTEES   part ecartee
+harry potter                    35       13        22          63 %
+le seigneur des anneaux         17        2        15          88 %
+      perdu : « Le seigneur des anneaux » — John Ronald Reuel Tolkien
+la horde du contrevent          38       13        25          66 %
+la passe-miroir                 15       11         4          27 %
+```
+
+**Une vraie édition de Tolkien serait effacée de la recherche.** Le signal est
+assez bon pour *classer* — une correspondance manquée coûte seulement un bonus
+— et beaucoup trop faible pour *filtrer*, où une correspondance manquée efface
+un livre. **Le même signal ne se transpose pas d'un usage à l'autre.**
+
+**Ce que la mesure a quand même rapporté : un défaut réel du rapprochement.**
+Tolkien était perdu parce qu'Open Library écrit « J.R.R. Tolkien » et Google
+« John Ronald Reuel Tolkien ». La clé triait les mots du nom : elle rapprochait
+« Zola, Émile » de « Émile Zola », mais pas deux abréviations différentes.
+
+Ajouté : une seconde clé **nom de famille + initiales des prénoms**.
+
+```
+« J.R.R. Tolkien »             -> tolkien|jrr
+« John Ronald Reuel Tolkien »  -> tolkien|jrr
+« Tolkien, J. R. R. »          -> tolkien|jrr
+```
+
+Les initiales sont **gardées**, délibérément : sur le seul nom de famille,
+« Martin » rapprocherait George R. R. Martin de n'importe quel Martin, et la
+notoriété de « game of thrones » atterrirait sur un homonyme. Une vérification
+automatique verrouille ce point.
+
+Gain mesuré sur « le seigneur des anneaux » : les cartes reconnues passent de
+**2 à 11**.
 
 ### M7 — Clôture
 
