@@ -203,7 +203,7 @@ export default function App() {
   return (
     <>
       <header className="appbar">
-        <span className="appbar__marque">Suivi Lecture</span>
+        <span className="appbar__marque">Vault Read</span>
         {nomProfil ? <span className="appbar__profil">{nomProfil}</span> : null}
       </header>
 

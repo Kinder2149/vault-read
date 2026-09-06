@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Suivi Lecture",
-  "short_name": "Lecture",
+  "name": "Vault Read",
+  "short_name": "Vault Read",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",

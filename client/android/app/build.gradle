@@ -17,10 +17,10 @@ if (signatureDisponible) {
 }
 
 android {
-    namespace = "com.kinder.suivilecture"
+    namespace = "com.kinder.vaultread"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.kinder.suivilecture"
+        applicationId "com.kinder.vaultread"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         /*

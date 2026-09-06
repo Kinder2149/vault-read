@@ -1,4 +1,4 @@
-package com.kinder.suivilecture;
+package com.kinder.vaultread;
 
 import com.getcapacitor.BridgeActivity;
 

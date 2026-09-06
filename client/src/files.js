@@ -12,12 +12,12 @@ import { Capacitor } from '@capacitor/core';
 
 const estWeb = () => Capacitor.getPlatform() === 'web';
 
-/** « suivi-lecture-2026-08-20.json » — daté, donc jamais écrasé par erreur. */
+/** « vault-read-2026-08-20.json » — daté, donc jamais écrasé par erreur. */
 export function nomFichierSauvegarde(extension = 'json') {
   const d = new Date();
   const mois = String(d.getMonth() + 1).padStart(2, '0');
   const jour = String(d.getDate()).padStart(2, '0');
-  return `suivi-lecture-${d.getFullYear()}-${mois}-${jour}.${extension}`;
+  return `vault-read-${d.getFullYear()}-${mois}-${jour}.${extension}`;
 }
 
 /**
@@ -53,7 +53,7 @@ export async function sortirTexte(nom, contenu, typeMime = 'application/json') {
 
   await Share.share({
     title: nom,
-    text: 'Sauvegarde Suivi Lecture',
+    text: 'Sauvegarde Vault Read',
     url: uri,
     dialogTitle: 'Enregistrer la sauvegarde',
   });

@@ -1,6 +1,6 @@
 {
-  "appId": "com.kinder.suivilecture",
-  "appName": "Suivi Lecture",
+  "appId": "com.kinder.vaultread",
+  "appName": "Vault Read",
   "webDir": "dist",
   "android": {
     "allowMixedContent": false

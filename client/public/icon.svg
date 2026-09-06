@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Suivi Lecture">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Vault Read">
   <rect width="512" height="512" rx="96" fill="#0E0F14"/>
   <path d="M112 128c56-20 104-20 144 4v260c-40-24-88-24-144-4z" fill="#E0724F"/>
   <path d="M400 128c-56-20-104-20-144 4v260c40-24 88-24 144-4z" fill="#F6F2E9"/>

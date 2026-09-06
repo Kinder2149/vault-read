@@ -1,4 +1,4 @@
-# PROJET_CONTEXTE — « Suivi Lecture »
+# PROJET_CONTEXTE — « Vault Read »
 
 > Document de référence du projet. Il fixe les décisions ; il ne décrit pas du
 > code qui n'existe pas encore, et il est tenu à jour quand une décision se
@@ -468,7 +468,7 @@ et l'ajout.** Fiches, progression, listes, statuts, sauvegarde : tout est local.
 
 ```jsonc
 {
-  "format": "suivi-lecture",
+  "format": "vault-read",       // ancien nom « suivi-lecture » encore accepté à la restauration
   "version": 1,
   "exportedAt": "…",
   "profile": { "id": "<uuid>", "name": "…" },
@@ -959,7 +959,7 @@ seulement dans le navigateur.
 **Les huit tranches sont écrites et vérifiées sur appareil.** Ce qui reste
 tient à Kinder et à son matériel, et est listé en §11.
 
-`appId` : `com.kinder.suivilecture` — `appName` : « Suivi Lecture ».
+`appId` : `com.kinder.vaultread` — `appName` : « Vault Read ».
 `versionCode` / `versionName` : **à incrémenter à la main à chaque publication**
 (oubli constaté sur le projet séries).
 
@@ -1113,7 +1113,7 @@ d'une erreur de chargement de classe : à tester, pas à décider à l'aveugle.
 
 **Vérifié sur appareil** : le bouton de scan apparaît à droite du champ et
 **uniquement sur Android** ; la demande de permission s'affiche au nom de
-« Suivi Lecture » ; le scanner Google démarre et **traite réellement les images
+« Vault Read » ; le scanner Google démarre et **traite réellement les images
 de la caméra** ; l'annulation revient à l'écran sans erreur ; le refus de la
 caméra affiche « Sans accès à la caméra, le scan est impossible. Tu peux saisir
 l'ISBN à la main. » La reconnaissance des ISBN est éprouvée sur sept cas —

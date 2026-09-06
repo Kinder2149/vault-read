@@ -1,9 +1,9 @@
-# Suivi Lecture
+# Vault Read
 
 Application Android de suivi de lecture, **100 % locale**. Aucun compte, aucune
 synchronisation, aucun serveur. Rien ne quitte l'appareil.
 
-Les décisions du projet vivent dans **[PROJET_CONTEXTE_SUIVI_LECTURE.md](PROJET_CONTEXTE_SUIVI_LECTURE.md)** —
+Les décisions du projet vivent dans **[PROJET_CONTEXTE_VAULT_READ.md](PROJET_CONTEXTE_VAULT_READ.md)** —
 c'est la référence, ce fichier n'en est que le mode d'emploi.
 
 ---
@@ -67,7 +67,7 @@ publique, même pour une application qui ne collecte rien.
 
 | | |
 |---|---|
-| Identifiant | `com.kinder.suivilecture` |
+| Identifiant | `com.kinder.vaultread` |
 | APK de test | ~18 Mo (quatre architectures) |
 | AAB de publication | ~9,4 Mo |
 | Dépendances de production | 11 |

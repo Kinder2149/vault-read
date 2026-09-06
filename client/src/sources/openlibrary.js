@@ -15,7 +15,7 @@
 const BASE = 'https://openlibrary.org';
 const COUVERTURES = 'https://covers.openlibrary.org';
 const DELAI_MAX_MS = 12000;
-const UA = 'SuiviLecture/1.0 (application locale de suivi de lecture)';
+const UA = 'VaultRead/1.0 (application locale de suivi de lecture)';
 
 /*
  * L'en-tête User-Agent est demandé par Open Library. Un navigateur INTERDIT de

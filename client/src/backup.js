@@ -11,8 +11,16 @@
 import * as store from './store.js';
 import { LIBELLES } from './status.js';
 
-export const FORMAT = 'suivi-lecture';
+export const FORMAT = 'vault-read';
 export const VERSION = 1;
+
+/*
+ * Formats acceptés À LA RESTAURATION. « suivi-lecture » est l'ancien nom du
+ * format, écrit par les versions publiées sous le nom « Suivi Lecture » : on
+ * continue de l'accepter pour ne jamais rendre une sauvegarde existante
+ * illisible après le renommage. Les nouvelles sauvegardes s'écrivent en FORMAT.
+ */
+const FORMATS_ACCEPTES = [FORMAT, 'suivi-lecture'];
 
 /** Construit l'objet de sauvegarde complet d'un profil. */
 export async function construireSauvegarde(profil) {
@@ -41,8 +49,8 @@ export function validerSauvegarde(brut) {
     throw new Error('Ce fichier n’est pas une sauvegarde lisible.');
   }
 
-  if (!donnees || donnees.format !== FORMAT) {
-    throw new Error('Ce fichier n’est pas une sauvegarde de Suivi Lecture.');
+  if (!donnees || !FORMATS_ACCEPTES.includes(donnees.format)) {
+    throw new Error('Ce fichier n’est pas une sauvegarde de Vault Read.');
   }
   if (typeof donnees.version !== 'number' || donnees.version > VERSION) {
     throw new Error(

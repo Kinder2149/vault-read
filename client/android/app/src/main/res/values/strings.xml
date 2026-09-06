@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Suivi Lecture</string>
-    <string name="title_activity_main">Suivi Lecture</string>
-    <string name="package_name">com.kinder.suivilecture</string>
-    <string name="custom_url_scheme">com.kinder.suivilecture</string>
+    <string name="app_name">Vault Read</string>
+    <string name="title_activity_main">Vault Read</string>
+    <string name="package_name">com.kinder.vaultread</string>
+    <string name="custom_url_scheme">com.kinder.vaultread</string>
 </resources>
