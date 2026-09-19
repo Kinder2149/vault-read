@@ -4,7 +4,7 @@
 > code qui n'existe pas encore, et il est tenu à jour quand une décision se
 > révèle fausse à l'usage.
 >
-> **Dépôt** : https://github.com/Kinder2149/TBDB-_-The-Book-DataBase
+> **Dépôt** : https://github.com/Kinder2149/vault-read
 > **État au 2026-09-19** : les huit tranches du §8 sont écrites et vérifiées sur
 > appareil, suivies de corrections d'usage (§12, tranches 8 à 30). 299
 > vérifications automatiques passent. Ce qui reste à faire est listé au §11 et
@@ -2392,6 +2392,60 @@ différents comme un défaut.
   avec un livre seul, garder la fusion des éditions illustrées et poche ;
   adapter le banc pour qu'il ne compte plus comme défaut une fusion voulue et
   qu'il passe par la sortie d'affichage. Aucune correction n'est faite.
+
+### Tranche 31 — cadrée le 2026-09-19, NON implémentée : coffrets et intégrales ne fusionnent plus avec un livre seul
+
+> **Statut : phase 5 de la méthode (cadrage d'étape) terminée, critère validé
+> par Kinder. Aucune ligne de code n'est écrite.** Origine : la mesure du banc
+> de la tranche 30 (14 cartes fautives).
+
+**Problème.** `titreOeuvre` (books.js) retire du titre les mots « coffret » et
+« intégrale » ainsi que tous les nombres, pour rapprocher les éditions. Or :
+« luxe », « illustrée », « poche » désignent le même texte sous une autre forme
+(fusion voulue) ; un **coffret** réunit plusieurs livres ; une **intégrale**
+sans numéro (« Les Fourmis – Intégrale ») réunit plusieurs romans, alors qu'une
+intégrale **numérotée** (« Le Trône de fer, Intégrale, Tome 1 ») est un tome
+(fusion demandée). Et les nombres retirés font fusionner « L'intégrale 1 » avec
+« L'intégrale – 3 ». Contenu réel de ces éditions non vérifié : seuls les titres
+affichés par le banc ont été vus.
+
+**Stratégie retenue** (principe hérité de la tranche 29 : *mieux vaut une carte
+en double qu'une fusion fausse*) :
+
+1. « **coffret** » ne sort plus du titre : un coffret garde sa propre carte ;
+2. « **intégrale** » ne sort du titre **que si un numéro l'accompagne** ; sans
+   numéro, elle reste dans le titre et fait une carte à part ;
+3. les **nombres restent dans la clé**, sauf les années à quatre chiffres : le
+   tome 1 et le tome 3 ne fusionnent jamais, même quand le tome n'est pas lu.
+
+Coût accepté : un peu moins de regroupement dans les cas ambigus (ex. la mention
+entre parenthèses « (L'intégrale 1 illustrée) »).
+
+**Fichiers touchés** : `books.js` (liste des mots d'édition et `titreOeuvre`,
+seulement) ; `tests/12-fusion.test.js` (un cas par défaut mesuré, les cas
+existants luxe / illustrée / poche gardés) ; `tests/banc-recherche.js` (passer
+par `fusionnerDoublonsAffichage`, ne plus compter une fusion voulue comme défaut).
+
+**Ce qu'on ne fait pas** : aucun changement du filtre du hors-sujet (mesuré à
+part) ; aucune fusion plus large par ISBN ; aucune dépendance ; aucun
+changement des sources, de la façade ou des écrans.
+
+**Critère de validation (écrit et validé par Kinder, 2026-09-19)** :
+
+1. Sur « harry potter », le coffret a sa propre carte, avec sa propre couverture.
+2. Sur « les fourmis », l'intégrale a sa carte à part, et le premier roman garde
+   sa couverture et son résumé.
+3. Sur « le trône de fer », l'intégrale 1 et l'intégrale 3 sont deux cartes
+   distinctes.
+4. Sur « game of thrones » et « germinal », les éditions de luxe, illustrées et
+   poche d'un même tome restent sur une seule carte.
+5. Sur les 8 recherches du banc, le livre cherché reste en 1ʳᵉ place et aucune
+   carte n'affiche une couverture ou un résumé venant d'un autre livre.
+
+**Clôture** : un test de code par point 1 à 4 (fixtures tirées des titres réels
+du banc) et le banc adapté pour le point 5 ; puis capture d'écran de Kinder sur
+« harry potter », « les fourmis » et « le trône de fer ». Test réussi ne vaut
+pas mission finie.
 
 ---
 

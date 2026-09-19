@@ -44,4 +44,7 @@ Pas encore publié : `versionCode` 1, `versionName` « 1.0 ».
 
 ## À venir
 
+- **Tranche 31** (cadrée le 2026-09-19, non implémentée) : coffrets et intégrales
+  ne fusionnent plus avec un livre seul. Critère écrit au §12.
+
 Voir `PROJET_CONTEXTE.md` §11 (publication) — rien n'est cadré au-delà.
