@@ -6,7 +6,7 @@
 >
 > **Dépôt** : https://github.com/Kinder2149/vault-read
 > **État au 2026-09-19** : les huit tranches du §8 sont écrites et vérifiées sur
-> appareil, suivies de corrections d'usage (§12, tranches 8 à 31). 305
+> appareil, suivies de corrections d'usage (§12, tranches 8 à 32). 305
 > vérifications automatiques passent. Ce qui reste à faire est listé au §11 et
 > dépend du matériel de Kinder. Journal court : `CHANGELOG.md`.
 > Les **décisions figées** sont au §9.
@@ -2493,6 +2493,86 @@ homonymes) ou si de vraies éditions disparaissent — c'est le risque déjà re
 en tranche 29 (« une vraie édition de Tolkien serait effacée »). Un « 0 défaut »
 sur deux cartes ne prouve rien. **Aucune correction n'est faite** ; à cadrer
 séparément, avec un examen carte par carte de ce qui est écarté.
+
+---
+
+### Tranche 32 — cadrée le 2026-09-19, NON implémentée : le filtre du hors-sujet reconnaît mieux l'auteur
+
+> **Statut : phase 5 (cadrage d'étape) terminée, critère validé par Kinder.
+> Aucune ligne de code n'est écrite.** Origine : l'observation de la tranche 31
+> (« 37 cartes deviennent 2 » sur « les fourmis »).
+
+**Mesure du 2026-09-19** (banc sur le réseau réel, cartes écartées listées une à
+une, 8 recherches, **147 cartes écartées**). C'est une **lecture des titres et
+des auteurs affichés**, pas une vérification livre en main : non vérifié.
+
+| Recherche | Écartées | Lecture |
+|---|---|---|
+| les fourmis | 35 | tout est entomologie, études, fiches de lecture : écarté à raison ; les 2 gardées sont de Werber |
+| game of thrones | 28 | guides, essais, coulisses de la série : à raison |
+| harry potter | 22 | guides, fiches de lecture, tricot, recettes : à raison |
+| le trône de fer | 23 | dictionnaires, droit, chemins de fer ; **1 vraie édition écartée** |
+| le seigneur des anneaux | 17 | essais, cinéma ; **1 vraie édition écartée** |
+| germinal | 8 | analyses, textes de loi ; **1 vraie édition écartée** (+ 1 édition bilingue en cyrillique) |
+| la quête d'ewilan / la passe-miroir | 8 / 6 | tout à raison |
+
+**Conclusion** : le filtre fait ce qu'on lui demande. « 37 → 2 » sur « les
+fourmis » était un filtrage juste, et la situation est très différente de la
+mission annulée en tranche 29 (88 % des cartes de Tolkien écartées, une vraie
+édition comprise). **Le défaut se limite à trois vraies éditions écartées à tort,
+toutes pour la même cause : l'auteur écrit autrement.**
+
+1. « Le Seigneur des anneaux (Tome 3) – Le Retour du Roi », signé « **JRR Tolkien** »
+   (sans points), non reconnu comme J.R.R. Tolkien ;
+2. « Le Trône de Fer T5 – L'Invincible Forteresse », signé « **George Martin** »
+   (sans R. R.), non reconnu comme George R. R. Martin ;
+3. « Germinal (Annotée) », signé « **Emile Emile Zola** » (prénom doublé).
+
+Cause (lecture du code, `clesAuteur` dans books.js) : la seconde clé d'auteur
+est « nom de famille + initiales », et exige des initiales **identiques** ;
+« JRR » est lu « J » ou « JR » selon l'écriture, « George Martin » donne « G »
+contre « GRR ». Limites connues, non traitées : la translittération cyrillique
+(déjà documentée en tranche 29) ; les cartes **sans aucun auteur** (écartées
+quand un auteur dominant est identifié — leur valeur réelle est inconnue) ; les
+guides qui portent le bon auteur (« Profil – Zola : Germinal ») restent visibles.
+
+**Stratégie retenue** : garder le filtre tel quel, et corriger seulement la
+**reconnaissance de l'auteur** dans `books.js` :
+
+1. **initiales compatibles** : même nom de famille, et une série d'initiales
+   commence par l'autre (« G » avec « GRR », « JR » avec « JRR ») ; deux prénoms
+   différents restent séparés (« Jean Martin » n'est pas George R. R. Martin) ;
+2. **mots répétés** : « Emile Emile Zola » est ramené à « Emile Zola ».
+
+Effet de bord voulu : la notoriété et le classement profitent de la même
+reconnaissance (`rangAuteur` sert aux deux).
+
+**Fichiers touchés** : `books.js` (la comparaison des auteurs, seulement) ; un
+test par cas dans `tests/11-notoriete.test.js` ou `tests/12-fusion.test.js` ;
+`tests/banc-recherche.js` (afficher la liste des cartes écartées, pour que cet
+examen carte par carte soit refaisable — il ne l'était que par un script
+temporaire).
+
+**Ce qu'on ne fait pas** : aucune translittération ; aucun changement du sort des
+cartes sans auteur ; aucun changement de la règle « auteur dominant » ni du
+filet du titre exact ; aucune dépendance ; aucun changement des sources, de la
+façade ou des écrans.
+
+**Critère de validation (écrit et validé par Kinder, 2026-09-19)** :
+
+1. Sur « le seigneur des anneaux », l'édition « Le Retour du Roi » signée
+   « JRR Tolkien » apparaît.
+2. Sur « le trône de fer », « Le Trône de Fer T5 » signé « George Martin »
+   apparaît.
+3. Sur « germinal », « Germinal (Annotée) » signé « Emile Emile Zola » apparaît.
+4. Sur les 8 recherches, aucun guide, essai ou documentaire écarté aujourd'hui ne
+   réapparaît.
+5. Aucun livre actuellement affiché ne disparaît.
+
+**Clôture** : un test de code par point 1 à 3 (auteurs tels que relevés) ; le
+banc, avec sa liste des écartées, comparée à celle du 2026-09-19 pour les points
+4 et 5 ; puis capture d'écran de Kinder sur « le seigneur des anneaux », « le
+trône de fer » et « germinal ». Test réussi ne vaut pas mission finie.
 
 ---
 
