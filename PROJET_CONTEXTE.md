@@ -2347,8 +2347,51 @@ lève cette réserve — seulement des vérifications automatiques (9 ajoutées)
 vérification sur « game of thrones ». À mesurer avant de le juger acquis, sur
 les huit recherches du banc de la tranche 29.
 
-**Vérifications** : 290 → **299**, tous passants. Le banc de recherche
-(`npm run banc`, réseau réel) n'a pas été relancé pour cette tranche.
+**Vérifications** : 290 → **299**, tous passants.
+
+#### Mesure du 2026-09-19 — le banc relancé sur les huit recherches (réseau réel)
+
+`npm run controle-sources` : Google 6/6 (855 ms), clé restreinte à la seule API
+Books, BnF répond. Open Library n'a pas répondu à ce contrôle (une seule mesure,
+sans conclusion de panne durable).
+
+`npm run banc`, même série que la tranche 29 :
+
+```
+  recherche                    cartes  defauts  sans image  place du livre
+  « harry potter »                 34        4            8         1
+  « le seigneur des anneaux »      29        2           14         1
+  « le trone de fer »              37        1            3         1
+  « la quete d'ewilan »            18        0            7         1
+  « la passe-miroir »              15        2            9         1
+  « game of thrones »              37        2           15         1
+  « germinal »                     13        1            3         1
+  « les fourmis »                  36        2            8         1
+```
+
+**14 cartes fautives, contre 0 à la tranche 29.** Le livre cherché reste en 1ʳᵉ
+place sur les huit. Ce n'est **pas** une comparaison A/B : l'ancienne version
+n'a pas été relancée. **Lecture (déduction, non mesurée)** : le regroupement de
+la tranche 30 retire « coffret », « intégrale », « illustrée » et les nombres
+du titre pour rapprocher les fiches, et le banc compte toute fusion de titres
+différents comme un défaut.
+
+- **Attendu, faux positif du banc** : « Germinal » avec « Germinal illustrée »,
+  « A Game of Thrones » avec « Game of Thrones ». C'est la demande de la
+  tranche 30 (une carte par livre).
+- **Probablement indésirable, contenu mélangé** : « Harry Potter » avec
+  « Harry Potter Coffret » (couverture prise sur le coffret) ; « Les fourmis »
+  avec « Les Fourmis – Intégrale » (couverture et résumé empruntés) ;
+  « Le Trône de Fer (L'intégrale 1 illustrée) » avec « L'Integrale – 3 »
+  (deux tomes possiblement confondus : aucun tome n'est lu sur ces titres).
+- **Le filtre du hors-sujet n'est toujours pas mesuré** : le banc appelle
+  `fusionnerDoublons`, pas la sortie d'affichage (`fusionnerDoublonsAffichage`)
+  que l'écran utilise. Sur « harry potter », Open Library était muette : le
+  filtre, fail-open, n'a rien filtré.
+- **À faire, après cadrage** : ne plus fusionner « coffret » et « intégrale »
+  avec un livre seul, garder la fusion des éditions illustrées et poche ;
+  adapter le banc pour qu'il ne compte plus comme défaut une fusion voulue et
+  qu'il passe par la sortie d'affichage. Aucune correction n'est faite.
 
 ---
 
