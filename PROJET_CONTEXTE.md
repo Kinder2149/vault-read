@@ -82,6 +82,15 @@ composants (.jsx)  →  api.js  →  store.js  →  db.js
    d'erreurs traverse toutes les couches par construction (§7) : c'est un
    canal, pas une donnée métier. Seules exceptions tolérées au-delà :
    l'écran de sauvegarde importe `backup.js` et `files.js`.
+   **Exception écrite le 2026-09-19 — les modules de calcul pur** : `tomes.js`,
+   `auteurs.js` et `statistiques.js` peuvent être importés directement par un
+   écran (aujourd'hui `Recherche.jsx` pour les deux premiers, `Statistiques.jsx`
+   pour le troisième). Condition, qui est ce qui les distingue de `store.js` et
+   `books.js` : **aucun accès à la base, aucun réseau, aucun état** — ils
+   transforment ce que `api.js` a déjà rendu, comme `status.js`. Constat au
+   2026-09-19 : `tomes.js` et `auteurs.js` n'importent rien ; `statistiques.js`
+   n'importe que `status.js`. Tout nouveau module ajouté à cette liste doit
+   être noté ici avant d'être importé par un écran.
 2. **`api.js` est une façade à signatures stables, toutes `async` dès le premier
    jour**, même quand l'implémentation est synchrone. C'est ce qui a permis au
    projet séries de supprimer un serveur Express entier sans toucher un seul
@@ -183,8 +192,8 @@ client/
 │   ├── tomes.js  auteurs.js  statistiques.js  scanner.js
 │   │                         ← ajoutés aux tranches 7 à 28 : calculs purs (tomes, tri,
 │   │                           filtre du hors-sujet, regroupement par auteur, statistiques)
-│   │                           et scan ISBN. Importés directement par `Recherche.jsx`
-│   │                           et `Statistiques.jsx` : écart à la règle 1 du §2, à trancher.
+│   │                           et scan ISBN. Les trois modules de calcul pur sont
+│   │                           importables par un écran (exception du §2, règle 1).
 │   ├── types.js              ← @typedef JSDoc — voir §7
 │   ├── status.js             ← les 4 statuts + règles dérivées
 │   ├── backup.js
@@ -993,7 +1002,9 @@ tient à Kinder et à son matériel, et est listé en §11.
 n'existe jamais sans au moins une édition, créées dans la même transaction,
 `edition_active` jamais nul · l'unité de `position` est **déduite** du format de
 l'édition active (page, minute, pourcentage), elle n'est pas stockée ·
-l'ajout d'un livre ne pose jamais de question · un résumé en anglais vaut mieux
+l'ajout d'un livre ne pose jamais de question · un écran n'importe que la façade
+`api.js`, `status.js`, `types.js`, `notify.js` et les trois modules de calcul pur
+(exception du §2) · un résumé en anglais vaut mieux
 qu'un résumé vide, et on ne traduit pas · une donnée corrigée à la main n'est
 jamais écrasée par une lecture automatique.
 
