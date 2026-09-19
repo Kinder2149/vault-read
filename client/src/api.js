@@ -113,7 +113,10 @@ export async function rechercherAvecEtat(texte, mode, page = 0, auteur = '') {
  * reecriture d'ecran une fois.
  */
 export async function fusionnerResultats(liste, texte) {
-  return books.fusionnerDoublons(liste, texte);
+  // Fusion PUIS retrait de ce qui n'est pas l'oeuvre (mission « le bruit
+  // d'abord ») : la meme sortie d'affichage que la recherche initiale, pour
+  // qu'une carte hors-sujet le reste quand les pages s'accumulent.
+  return books.fusionnerDoublonsAffichage(liste, texte);
 }
 
 /* Les dernieres recherches, pour les reproposer (retour d'usage 100). */

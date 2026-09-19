@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest';
 import {
   numeroDeTome, separerLesTomes, organiserLEcran, nomDeSerie, nombreDeTomes,
   serieAConfirmer, trierResultats,
-  scorePertinence,
+  scorePertinence, filtrerHorsSujet,
 } from '../src/tomes.js';
 
 describe('Lire un numero de tome dans un titre', () => {
@@ -477,5 +477,70 @@ describe('Lire un tome ecrit a la maniere de la BnF', () => {
     // il faut une fin de titre ou un deux-points derriere.
     expect(numeroDeTome('Germinal, E. Zola')).toBeNull();
     expect(numeroDeTome('Le seigneur des anneaux, J. R. R. Tolkien')).toBeNull();
+  });
+});
+
+describe('Faire disparaitre ce qui n-est pas l-oeuvre (mission « le bruit d-abord »)', () => {
+  /*
+   * Retour d'usage : « je cherche Game of Thrones et il me sort des choses en
+   * lien avec la serie televisee, pas que des livres ». Le signal, c'est
+   * l'auteur : un essai SUR l'oeuvre n'est pas ecrit par l'auteur de l'oeuvre.
+   * `rangAuteur` (pose par books.js depuis Open Library) marque l'ecrivain.
+   */
+  const roman = { titre: 'Le Trône de fer', auteurs: ['George R. R. Martin'], rangAuteur: 0 };
+  const vo = { titre: 'A Game of Thrones', auteurs: ['George R. R. Martin'], rangAuteur: 0 };
+  const essai = { titre: 'Game of Thrones et la philosophie', auteurs: ['Un Universitaire'] };
+  const derive = { titre: 'Game of Thrones : le livre officiel des festins', auteurs: ['Un Cuisinier'] };
+
+  it('retire les essais et derives, garde les livres de l-auteur', () => {
+    const gardes = filtrerHorsSujet([roman, essai, vo, derive], 'game of thrones');
+    expect(gardes).toContain(roman);
+    expect(gardes).toContain(vo);
+    expect(gardes).not.toContain(essai);
+    expect(gardes).not.toContain(derive);
+  });
+
+  it('FAIL-OPEN : sans aucun signal d-auteur, ne filtre rien', () => {
+    // Open Library muette (aucun rangAuteur nulle part) : mieux vaut du bruit
+    // qu'un ecran vide. On rend la liste entiere, inchangee.
+    const liste = [
+      { titre: 'Game of Thrones et la philosophie', auteurs: ['X'] },
+      { titre: 'Comprendre le leadership avec la serie', auteurs: ['Y'] },
+    ];
+    expect(filtrerHorsSujet(liste, 'game of thrones')).toHaveLength(2);
+  });
+
+  it('AUTEUR DOMINANT : un derive titre EXACTEMENT comme la recherche tombe quand même', () => {
+    // Le cas reel de « game of thrones » : « Game of Thrones decode », le guide
+    // de Cedric Delaunay, « History of Thrones »… sont titres exactement
+    // « Game of Thrones » mais signes d'un autre que Martin. Quand Martin est
+    // identifie (rang 0), ce sont des derives, pas des editions perdues.
+    const guide = { titre: 'Game of Thrones', auteurs: ['Cédric Delaunay'] };
+    const decode = { titre: 'Game of Thrones décodé', auteurs: ['Ava Cahen'] };
+    const gardes = filtrerHorsSujet([roman, guide, decode], 'game of thrones');
+    expect(gardes).toContain(roman);
+    expect(gardes).not.toContain(guide);
+    expect(gardes).not.toContain(decode);
+  });
+
+  it('FILET DU TITRE : garde une edition au titre exact TANT QU-il n-y a pas d-auteur dominant', () => {
+    // Notoriete presente mais faible (aucun rang 0 parmi les resultats) : on ne
+    // fait pas pleine confiance a l'auteur, et une edition mal renseignee dont
+    // le titre colle est rattrapee.
+    const secondaire = { titre: 'Un titre secondaire', auteurs: ['Auteur classe'], rangAuteur: 3 };
+    const editionMalRenseignee = { titre: 'Le Trône de fer', auteurs: ['Editeur inconnu d-OL'] };
+    const gardes = filtrerHorsSujet([secondaire, editionMalRenseignee], 'le trône de fer');
+    expect(gardes).toContain(editionMalRenseignee);
+  });
+
+  it('un titre qui COMMENCE par la recherche mais ajoute plusieurs mots tombe', () => {
+    // « Game of Thrones et la philosophie » commence par la recherche, mais y
+    // ajoute trois mots : c'est la signature de l'essai, pas de l'oeuvre.
+    const gardes = filtrerHorsSujet([roman, essai], 'game of thrones');
+    expect(gardes).not.toContain(essai);
+  });
+
+  it('une recherche vide ne filtre rien', () => {
+    expect(filtrerHorsSujet([roman, essai], '')).toHaveLength(2);
   });
 });

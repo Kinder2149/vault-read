@@ -16,7 +16,7 @@ import * as bnf from './sources/bnf.js';
  * dans un fichier de presentation : c'est l'inverse, on emprunte un calcul.
  * Il sert a designer, dans un groupe de doublons, la fiche qui fera la carte.
  */
-import { numeroDeTome, scorePertinence } from './tomes.js';
+import { numeroDeTome, scorePertinence, filtrerHorsSujet } from './tomes.js';
 
 /** @typedef {import('./types.js').ResultatRecherche} ResultatRecherche */
 /** @typedef {import('./types.js').Identite} Identite */
@@ -190,10 +190,58 @@ function normaliser(texte, couperSousTitre) {
  * Rend `null` quand il manque le titre ou l'auteur : la fiche reste alors
  * seule plutot que d'aspirer les autres.
  */
+/*
+ * MOTS DE FORMAT ET D'EDITION — retour d'usage : « les editions d'un meme
+ * livre ne sont pas regroupees, alors qu'on voudrait une seule carte par
+ * livre et choisir l'edition dans la fiche ».
+ *
+ * Ces mots distinguent deux EXEMPLAIRES du meme texte, pas deux textes. Le
+ * regroupement les ignore, pour qu'une « Edition de luxe » et une edition
+ * poche du MEME tome ne fassent plus qu'une carte. Le NUMERO de tome, lui,
+ * reste dans la cle (composante `t` plus bas) : un tome 1 ne fusionne jamais
+ * avec un tome 3, meme depouilles de leurs mentions d'edition.
+ *
+ * Verifie en vrai le 2026-09-07 : sur « game of thrones », les cinq editions
+ * de l'integrale (« Tome 1 . Edition de luxe », « Tome 3 . Edition illustree »…)
+ * restaient cinq cartes distinctes du meme tome faute de ce depouillement.
+ */
+const MOTS_EDITION = new Set([
+  'integrale', 'integrales', 'luxe', 'deluxe', 'illustree', 'illustre',
+  'edition', 'editions', 'poche', 'broche', 'brochee', 'relie', 'reliee',
+  'collector', 'coffret', 'grand', 'format', 'nouvelle', 'revue', 'augmentee',
+  'definitive', 'anniversaire', 'tome', 'tomes', 'volume', 'vol',
+]);
+
+/*
+ * Le titre reduit a l'OEUVRE, pour RAPPROCHER deux editions — jamais affiche.
+ * C'est ce qui autorise un nettoyage franc, impensable sur un titre montre a
+ * l'ecran :
+ *  - les PARENTHESES partent (rappel de VO « (A game of Thrones) », mention
+ *    d'annee, de collection) ;
+ *  - les mentions d'EDITION partent (voir MOTS_EDITION) ;
+ *  - les NOMBRES partent — le tome est porte a part dans la cle, donc les
+ *    retirer ne confond jamais deux tomes, et cela evite qu'une annee ou un
+ *    numero d'edition entre dans l'identite ;
+ *  - les PETITS MOTS (2 lettres ou moins) partent : articles, prepositions et
+ *    residus d'elision (« l'Integrale » -> « l », « de luxe » -> « de »)
+ *    faisaient echouer le rapprochement sur les vrais titres mesures le
+ *    2026-09-07. Les retirer de PARTOUT, de facon identique, garde la cle
+ *    coherente sans rien confondre — l'auteur et le tome departagent le reste.
+ * Ne rend JAMAIS une chaine vide (« 1984 », « Ca ») : on retombe alors sur le
+ * titre entier normalise, quitte a moins regrouper, plutot que de tout fondre.
+ */
+function titreOeuvre(titre) {
+  const sansParentheses = String(titre || '').replace(/\([^)]*\)/g, ' ');
+  const filtre = normaliser(sansParentheses, false).split('-')
+    .filter((mot) => mot.length > 2 && !MOTS_EDITION.has(mot) && !/^\d+$/.test(mot))
+    .join('-');
+  return filtre || normaliser(titre, false);
+}
+
 function cleRegroupement(titre, auteurs, sousTitre = null) {
   const premier = Array.isArray(auteurs) ? auteurs[0] : auteurs;
   const nom = cleAuteur(premier);
-  const t = normaliser(titre, false);
+  const t = titreOeuvre(titre);
   if (!t || !nom) return null;
   const tome = numeroDeTome(`${titre || ''} ${sousTitre || ''}`);
   return `grp:${t}|${nom}|t${tome ?? ''}`;
@@ -348,6 +396,26 @@ export function fusionnerDoublons(resultats, requete = '') {
   return [...groupes.values()].map((groupe) => fondre(groupe, requete));
 }
 
+/**
+ * FUSION + FILTRE, dans cet ordre : c'est ce que l'ECRAN doit montrer.
+ *
+ * `fusionnerDoublons` reste pur (il regroupe, il ne juge pas) ; ce wrapper y
+ * ajoute le retrait de ce qui n'est pas l'oeuvre (mission « le bruit
+ * d'abord », voir `filtrerHorsSujet` dans tomes.js). On l'appelle des deux
+ * cotes — la recherche initiale et l'ajout des pages suivantes — pour qu'une
+ * carte ecartee comme hors-sujet le reste quand les pages s'accumulent.
+ *
+ * Le filtre est fail-open : sans signal d'auteur (modes Auteur et ISBN, ou
+ * Open Library muette), il rend la liste inchangee.
+ *
+ * @param {ResultatRecherche[]} resultats
+ * @param {string} requete
+ * @returns {ResultatRecherche[]}
+ */
+export function fusionnerDoublonsAffichage(resultats, requete = '') {
+  return filtrerHorsSujet(fusionnerDoublons(resultats, requete), requete);
+}
+
 /*
  * Toutes les cles d'une fiche — y compris celles qu'elle a deja absorbees.
  * C'est ce qui rend la fusion IDEMPOTENTE : l'ecran refond la liste entiere a
@@ -458,7 +526,7 @@ export async function rechercher(texte, mode, page = 0, auteur = '') {
   return {
     ...brut,
     nbSource: brut.resultats.length,
-    resultats: fusionnerDoublons(classes, texte),
+    resultats: fusionnerDoublonsAffichage(classes, texte),
   };
 }
 

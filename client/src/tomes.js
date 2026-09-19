@@ -469,6 +469,94 @@ export function scorePertinence(resultat, requete) {
     + (resultat.langue === 'fr' ? 8 : 0);
 }
 
+// ---------------------------------------------------------------------------
+// FILTRER CE QUI N'EST PAS L'OEUVRE (mission « le bruit d'abord »)
+// ---------------------------------------------------------------------------
+
+/*
+ * Retour d'usage : « je cherche Game of Thrones et il me sort des choses en
+ * lien avec la serie televisee, pas que des livres. »
+ *
+ * Jusqu'ici, le score CLASSAIT sans jamais FILTRER : les essais, guides et
+ * derives (« comprendre le leadership avec la serie », « le livre des
+ * festins ») remontaient moins haut, mais restaient a l'ecran. La decision de
+ * l'utilisateur : les faire disparaitre.
+ *
+ * LE SIGNAL, c'est l'AUTEUR — le meme que celui de la notoriete (books.js) :
+ * un essai SUR une oeuvre n'est pas ecrit par l'auteur de l'oeuvre. Open
+ * Library nous dit deja quel auteur est « la reponse a cette recherche » ;
+ * `rangAuteur` marque les resultats de cet auteur. On garde ceux-la, on jette
+ * le reste.
+ *
+ * DEUX GARDE-FOUS, sans lesquels ce filtre ferait plus de mal que de bien :
+ *
+ *  1. FAIL-OPEN. Si AUCUN resultat ne porte de rang d'auteur — Open Library
+ *     muette, ou auteur inconnu d'elle —, on ne filtre RIEN. C'est la meme
+ *     regle que partout dans le projet : mieux vaut du bruit qu'un ecran vide.
+ *     Le filtre ne mord donc qu'en mode Titre, seul mode ou la notoriete est
+ *     calculee (books.js) — les modes Auteur et ISBN passent au travers sans
+ *     etre touches.
+ *
+ *  2. FILET DU TITRE EXACT, MAIS SEULEMENT SANS AUTEUR DOMINANT. Un livre dont
+ *     le TITRE colle a la recherche reste — c'est le cas d'une edition mal
+ *     renseignee, qu'on ne veut pas effacer — TANT QU'aucun auteur n'a ete
+ *     clairement identifie pour cette recherche.
+ *
+ *     Des qu'Open Library designe un auteur DOMINANT (le sien arrive en tete,
+ *     rang 0), on se fie a l'auteur et plus au titre. C'est la lecon de
+ *     « game of thrones » verifiee sur appels reels le 2026-09-07 : une foule
+ *     de guides et de derives sont titres EXACTEMENT « Game of Thrones »
+ *     (« Game of Thrones decode », le guide de Cedric Delaunay, « History of
+ *     Thrones »…). Le filet du titre les gardait tous. Or quand Martin est
+ *     identifie sans ambiguite, un « Game of Thrones » signe d'un AUTRE que lui
+ *     est un derive, pas une edition perdue du roman.
+ */
+function estDuSujet(r, q, auteurDominant) {
+  // Par l'auteur : le signal le plus fiable.
+  if (Number.isInteger(r.rangAuteur)) return true;
+
+  // Auteur dominant identifie : on ne rattrape plus par le titre.
+  if (auteurDominant) return false;
+
+  // Sinon, filet : le titre lui-meme (hors sous-titre) colle a la recherche.
+  const c = correspondance(comparable(r.titre), q);
+  if (c >= 100) return true;
+  if (c >= 70) {
+    const titre = sansArticle(comparable(r.titre));
+    const req = sansArticle(q);
+    return mots(titre).length - mots(req).length <= 1;
+  }
+  return false;
+}
+
+/**
+ * Retire les resultats qui ne sont pas l'oeuvre cherchee. Fail-open : rend la
+ * liste inchangee des qu'aucun signal d'auteur n'est disponible.
+ *
+ * @param {object[]} resultats resultats deja fusionnes, avec `rangAuteur` quand
+ *   Open Library l'a fourni (books.js)
+ * @param {string} requete texte tape par l'utilisateur
+ * @returns {object[]}
+ */
+export function filtrerHorsSujet(resultats, requete) {
+  const liste = resultats || [];
+  const q = comparable(requete);
+  if (!q) return liste;
+
+  // Aucun rang d'auteur nulle part : on ne sait rien, on ne filtre rien.
+  const rangs = liste.map((r) => r.rangAuteur).filter(Number.isInteger);
+  if (rangs.length === 0) return liste;
+
+  // Auteur DOMINANT : l'auteur de l'oeuvre arrive en tete chez Open Library
+  // (rang 0) et figure dans les resultats. On lui fait alors pleine confiance.
+  const auteurDominant = rangs.some((n) => n === 0);
+
+  const gardes = liste.filter((r) => estDuSujet(r, q, auteurDominant));
+  // Dernier garde-fou : si le filtre effacait TOUT (cas theorique ou le signal
+  // se contredit), on prefere rendre la liste entiere qu'un ecran vide.
+  return gardes.length ? gardes : liste;
+}
+
 /**
  * Trie une liste de resultats.
  *

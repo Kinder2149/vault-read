@@ -150,3 +150,37 @@ describe('Refondre une liste deja fondue ne change rien', () => {
     expect(carte.clesSource).toEqual(expect.arrayContaining([a.cleSource, b.cleSource]));
   });
 });
+
+describe('Les EDITIONS d-un meme livre ne font qu-une carte (mission « regrouper »)', () => {
+  /*
+   * Retour d'usage : « les editions d'un meme livre ne sont pas regroupees ;
+   * on voudrait la plus populaire sur une seule carte, et choisir l'edition
+   * dans la fiche ». Les mentions de FORMAT (« Edition de luxe », « poche »,
+   * « integrale »…) distinguent deux exemplaires du meme texte, pas deux
+   * textes : elles sortent donc de la cle de regroupement.
+   */
+  it('les mentions de format (luxe, illustree, poche…) ne separent plus le meme tome', () => {
+    const editions = [
+      fiche({ titre: "Le Trône de fer l'Intégrale (A game of Thrones) Tome 1 . Edition de luxe", auteurs: ['George R. R. Martin'] }),
+      fiche({ titre: "Le Trône de fer l'Intégrale (A game of Thrones) Tome 1 . Edition illustrée", auteurs: ['George R. R. Martin'] }),
+      fiche({ titre: 'Le Trône de fer (A game of Thrones) Tome 1', auteurs: ['George R. R. Martin'] }),
+    ];
+    expect(fusionnerDoublons(editions, 'le trone de fer')).toHaveLength(1);
+  });
+
+  it('MAIS deux TOMES depouilles de leur mention d-edition restent separes', () => {
+    // Le numero de tome reste dans la cle : sans cela, depouiller « Edition de
+    // luxe » ferait fusionner le tome 1 et le tome 3.
+    const t1 = fiche({ titre: 'Le Trône de fer Tome 1 . Edition de luxe', auteurs: ['Martin'] });
+    const t3 = fiche({ titre: 'Le Trône de fer Tome 3 . Edition de luxe', auteurs: ['Martin'] });
+    expect(fusionnerDoublons([t1, t3], 'le trone de fer')).toHaveLength(2);
+  });
+
+  it('et deux OEUVRES distinctes que seul un mot porteur separe ne fusionnent pas', () => {
+    // « annotee » et « texte abrege » ne sont PAS des mentions de format : ce
+    // sont des livres differents, ils gardent chacun leur carte.
+    const roman = fiche({ titre: 'Germinal', auteurs: ['Émile Zola'] });
+    const abrege = fiche({ titre: 'Germinal - Texte abrégé', auteurs: ['Émile Zola'] });
+    expect(fusionnerDoublons([roman, abrege], 'germinal')).toHaveLength(2);
+  });
+});

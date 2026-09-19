@@ -364,8 +364,14 @@ describe('Le cache survit a la fermeture de l-application', () => {
      * En la faisant repondre, on verifie du meme coup que le cache de
      * notoriete (sept jours, sur disque) survit lui aussi a la fermeture.
      */
+    /*
+     * Les six auteurs sont reconnus par Open Library : sans cela, le filtre
+     * « hors-sujet » (mission « le bruit d'abord ») ne garderait que le livre
+     * de l'auteur notoire, et ce test — qui verifie le CACHE, pas le filtre —
+     * compterait une longueur reduite sans rapport avec son objet.
+     */
     reseau((n, url) => (url.includes('openlibrary.org/search')
-      ? ok({ docs: [{ key: '/works/OL1W', title: 'Livre 0', author_name: ['Auteur 0'], readinglog_count: 10 }] })
+      ? ok({ docs: Array.from({ length: 6 }, (_, i) => ({ key: `/works/OL${i}W`, title: `Livre ${i}`, author_name: [`Auteur ${i}`], readinglog_count: 100 - i })) })
       : ok(reponseGoogle(6))));
     let books = await import('../src/books.js');
     const premier = await books.rechercher('dune', 'titre');
@@ -532,8 +538,18 @@ describe('La notoriete des oeuvres, et sa resistance', () => {
     const premier = resultats.find((r) => r.auteurs.includes('Auteur 0'));
     expect(premier.rangAuteur).toBe(0);
     expect(premier.lecteurs).toBe(5000);
-    // Un auteur inconnu d'Open Library n'est pas classe — et n'est pas efface.
-    expect(resultats.find((r) => r.auteurs.includes('Auteur 1')).rangAuteur).toBeUndefined();
+    /*
+     * NOUVEAU CONTRAT (mission « le bruit d'abord ») : un livre dont l'auteur
+     * n'est pas reconnu par Open Library ET dont le titre ne colle pas a la
+     * recherche est desormais RETIRE, plus seulement mal classe.
+     */
+    expect(resultats.some((r) => r.auteurs.includes('Auteur 1'))).toBe(false);
+    // attribuerNotoriete, elle, n'invente jamais de rang pour un auteur inconnu.
+    const classes = books.attribuerNotoriete(
+      [{ cleSource: 'x', titre: 'Livre 1', auteurs: ['Auteur 1'] }],
+      [{ auteurs: ['Auteur 0'], lecteurs: 5000 }],
+    );
+    expect(classes[0].rangAuteur).toBeUndefined();
   });
 
   it('N-APPELLE OPEN LIBRARY QU-UNE FOIS pour toutes les pages d-une recherche', async () => {
