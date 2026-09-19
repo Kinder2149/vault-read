@@ -6,7 +6,7 @@
 >
 > **Dépôt** : https://github.com/Kinder2149/vault-read
 > **État au 2026-09-19** : les huit tranches du §8 sont écrites et vérifiées sur
-> appareil, suivies de corrections d'usage (§12, tranches 8 à 32). 305
+> appareil, suivies de corrections d'usage (§12, tranches 8 à 32). 311
 > vérifications automatiques passent. Ce qui reste à faire est listé au §11 et
 > dépend du matériel de Kinder. Journal court : `CHANGELOG.md`.
 > Les **décisions figées** sont au §9.
@@ -2496,11 +2496,11 @@ séparément, avec un examen carte par carte de ce qui est écarté.
 
 ---
 
-### Tranche 32 — cadrée le 2026-09-19, NON implémentée : le filtre du hors-sujet reconnaît mieux l'auteur
+### Tranche 32 — 2026-09-19 : le filtre du hors-sujet reconnaît mieux l'auteur
 
-> **Statut : phase 5 (cadrage d'étape) terminée, critère validé par Kinder.
-> Aucune ligne de code n'est écrite.** Origine : l'observation de la tranche 31
-> (« 37 cartes deviennent 2 » sur « les fourmis »).
+> **Statut : implémentée et testée le 2026-09-19 ; EN ATTENTE des captures de
+> Kinder (clôture).** Origine : l'observation de la tranche 31 (« 37 cartes
+> deviennent 2 » sur « les fourmis »). Voir « Réalisation » en fin de section.
 
 **Mesure du 2026-09-19** (banc sur le réseau réel, cartes écartées listées une à
 une, 8 recherches, **147 cartes écartées**). C'est une **lecture des titres et
@@ -2573,6 +2573,46 @@ façade ou des écrans.
 banc, avec sa liste des écartées, comparée à celle du 2026-09-19 pour les points
 4 et 5 ; puis capture d'écran de Kinder sur « le seigneur des anneaux », « le
 trône de fer » et « germinal ». Test réussi ne vaut pas mission finie.
+
+#### Réalisation (2026-09-19)
+
+- **`books.js`** : `clesAuteur` (jeu de clés exactes) est remplacé par
+  `profilAuteur` + `memeAuteur` : même nom de famille et une série d'initiales
+  qui commence par l'autre ; une série vide ne rapproche rien (« Martin » seul
+  reste écarté) ; un mot répété de suite compte pour un. La clé de **fusion**
+  des fiches (`cleAuteur`) est inchangée. Rien d'autre n'est touché.
+- **Tests** : 6 ajoutés dans `11-notoriete.test.js` (305 → **311**, tous
+  passants) : un par auteur relevé, le cas inverse, les homonymes qui restent
+  séparés (« Jean Martin », « Martin », « J. K. Martin », « Georges Duhamel »),
+  l'écriture habituelle, et un cas d'écran. Les **4 tests portant sur les
+  défauts échouent avant la correction** ; les 2 tests de garde réussissent
+  avant et après.
+- **Banc** : nouvelle option `npm run banc -- --ecartees` qui liste les cartes
+  écartées par le filtre, recherche par recherche.
+
+**Résultat, réseau réel, le 2026-09-19** (Open Library répondait sur les 8
+recherches ; un premier lancement où elle était muette sur 5 a été écarté, le
+filtre ne filtrant alors rien) — liste des écartées comparée à celle mesurée
+avant la correction :
+
+```
+  recherche                    écartées avant -> après   réapparaît
+  harry potter                        22 -> 22            —
+  le seigneur des anneaux             17 -> 16            « Le Retour du Roi » (JRR Tolkien)
+  le trône de fer                     23 -> 22            « Le Trône de Fer T5 » (George Martin)
+  la quête d'ewilan                    8 ->  8            —
+  la passe-miroir                      6 ->  6            —
+  game of thrones                     28 -> 28            —
+  germinal                             8 ->  7            « Germinal (Annotée) » (Emile Emile Zola)
+  les fourmis                         35 -> 35            —
+```
+
+Points 1 à 3 du critère : **les trois éditions réapparaissent**. Point 4 :
+**aucune autre carte écartée ne réapparaît**. Point 5 : **aucune carte n'est
+nouvellement écartée**. Réserve : les deux listes viennent de deux lancements
+du banc sur Google, dont les réponses peuvent varier légèrement ; l'identité
+des listes à trois cartes près est néanmoins un bon signe. Le banc reste à
+**0 défaut** sur les 8 recherches.
 
 ---
 

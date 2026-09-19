@@ -4,7 +4,7 @@ Journal court : une ligne par étape. Le détail, les mesures et les raisons son
 dans `PROJET_CONTEXTE.md` (§8 pour les tranches 0 à 8, §12 pour les suivantes).
 Ce fichier ne contient aucune décision : il ne fait que renvoyer.
 
-Dernier état connu : **305 vérifications automatiques passent** (2026-09-19).
+Dernier état connu : **311 vérifications automatiques passent** (2026-09-19).
 Pas encore publié : `versionCode` 1, `versionName` « 1.0 ».
 
 ## Tranches de construction (§8)
@@ -44,8 +44,9 @@ Pas encore publié : `versionCode` 1, `versionName` « 1.0 ».
 - **2026-09-19** — Tranche 31 (en attente des captures de Kinder) : coffrets et
   intégrales ne fusionnent plus avec un livre seul ; banc adapté, 0 défaut sur 8
   recherches. Le filtre du hors-sujet écarte beaucoup : à cadrer (voir §12).
-- **2026-09-19** — Tranche 32 (cadrée, non implémentée) : le filtre du hors-sujet
-  reconnaît mieux l'auteur (3 vraies éditions écartées à tort). Critère écrit au §12.
+- **2026-09-19** — Tranche 32 (en attente des captures de Kinder) : le filtre du
+  hors-sujet reconnaît mieux l'auteur ; les 3 vraies éditions écartées à tort
+  réapparaissent, rien d'autre ne bouge. Option `npm run banc -- --ecartees`.
 
 ## À venir
 

@@ -2,6 +2,7 @@
  * BANC D'ESSAI DE LA RECHERCHE — a lancer a la main.
  *
  *   npm run banc
+ *   npm run banc -- --ecartees     (liste aussi les cartes ECARTEES par le filtre)
  *
  * Ce n'est PAS une verification automatique : il n'echoue jamais, il MONTRE.
  * Le jugement reste humain — un classement ne se declare pas bon ou mauvais
@@ -60,6 +61,7 @@ const RECHERCHES = [
   { texte: 'les fourmis', cible: 'werber' },
 ];
 
+const LISTER_ECARTEES = process.argv.includes('--ecartees');
 const PAGES = 2;
 const MAX_RESULTATS = 20;
 
@@ -276,7 +278,18 @@ for (const { texte, cible } of RECHERCHES) {
   const notes = attribuerNotoriete(brut, oeuvres);
   // La sortie d'AFFICHAGE : fusion puis filtre du hors-sujet, comme l'ecran.
   const cartes = fusionnerDoublonsAffichage(notes, texte);
-  const avantFiltre = fusionnerDoublons(notes, texte).length;   // pour voir ce que le filtre ecarte
+  const fusionnees = fusionnerDoublons(notes, texte);
+  const avantFiltre = fusionnees.length;   // pour voir ce que le filtre ecarte
+  if (LISTER_ECARTEES) {
+    // L'examen carte par carte de la tranche 32 : que jette le filtre du
+    // hors-sujet ? Une vraie edition dans cette liste est un defaut.
+    const gardees = new Set(cartes.map((c) => c.cleSource));
+    const ecartees = fusionnees.filter((c) => !gardees.has(c.cleSource));
+    console.log(gris(`  ECARTEES (${ecartees.length}) :`));
+    ecartees.forEach((c) => console.log(gris(
+      `     - ${court(c.titre, 55)}  — ${court((c.auteurs || []).join(', '), 30)}`,
+    )));
+  }
 
   // Retrouver, pour chaque carte, les fiches brutes qu'elle a absorbees.
   const parCle = new Map(brut.map((r) => [r.cleSource, r]));

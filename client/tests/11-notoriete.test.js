@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { attribuerNotoriete } from '../src/books.js';
+import { attribuerNotoriete, fusionnerDoublonsAffichage } from '../src/books.js';
 import { scorePertinence } from '../src/tomes.js';
 
 /* Une oeuvre telle que `oeuvresNotoires` la rend. */
@@ -196,5 +196,62 @@ describe('Le livre cherche passe devant ce qui parle de lui', () => {
     };
     expect(scorePertinence(avecEditions, 'germinal'))
       .toBeGreaterThan(scorePertinence(seule, 'germinal'));
+  });
+});
+
+describe('Tranche 32 — le meme auteur, ecrit autrement, n-est plus ecarte a tort', () => {
+  /*
+   * Les trois auteurs sont ceux releves le 2026-09-19 sur des VRAIES editions
+   * que le filtre du hors-sujet ecartait : « JRR Tolkien », « George Martin »,
+   * « Emile Emile Zola ». Une serie d'initiales compatible avec l'autre
+   * (« G » avec « GRR ») suffit ; un prenom different, non.
+   */
+  const rang = (auteur, oeuvreAuteur) => attribuerNotoriete(
+    [{ cleSource: 'gb:1', titre: 'Un livre', auteurs: [auteur] }],
+    [oeuvre('Une oeuvre', [oeuvreAuteur], 100)],
+  )[0].rangAuteur;
+
+  // Critère 1.
+  it('« JRR Tolkien » (sans points) est J.R.R. Tolkien', () => {
+    expect(rang('JRR Tolkien', 'J.R.R. Tolkien')).toBe(0);
+  });
+
+  // Critère 2, dans les deux sens.
+  it('« George Martin » est George R. R. Martin — et inversement', () => {
+    expect(rang('George Martin', 'George R. R. Martin')).toBe(0);
+    expect(rang('George R.R. Martin', 'George Martin')).toBe(0);
+  });
+
+  // Critère 3.
+  it('« Emile Emile Zola » (prenom double) est Emile Zola', () => {
+    expect(rang('Emile Emile Zola', 'Émile Zola')).toBe(0);
+  });
+
+  it('MAIS un autre prenom, ou aucun, n-est PAS le meme auteur', () => {
+    // C'est la raison d'etre des initiales (§ books.js) : « Martin » seul
+    // rapprocherait George R. R. Martin de n'importe quel Martin.
+    expect(rang('Jean Martin', 'George R. R. Martin')).toBeUndefined();
+    expect(rang('Martin', 'George R. R. Martin')).toBeUndefined();
+    expect(rang('J. K. Martin', 'J. R. R. Martin')).toBeUndefined();
+    expect(rang('Georges Duhamel', 'George R. R. Martin')).toBeUndefined();
+  });
+
+  it('l-ecriture habituelle continue de fonctionner', () => {
+    expect(rang('John Ronald Reuel Tolkien', 'J.R.R. Tolkien')).toBe(0);
+    expect(rang('Zola, Émile', 'Emile Zola')).toBe(0);
+    expect(rang('Bernard Werber', 'Bernard Werber')).toBe(0);
+  });
+
+  it('a l-ecran : l-edition « JRR Tolkien » reste, l-essai d-un autre reste ecarte', () => {
+    const fiches = [
+      { cleSource: 'gb:1', titre: 'Le Seigneur des anneaux (Tome 1) - La Communauté', auteurs: ['J.R.R. Tolkien'] },
+      { cleSource: 'gb:2', titre: 'Le Seigneur des anneaux (Tome 3) - Le Retour du Roi', auteurs: ['JRR Tolkien'] },
+      { cleSource: 'gb:3', titre: 'Le seigneur des anneaux ou la tentation du mal', auteurs: ['Isabelle Smadja'] },
+    ];
+    const notees = attribuerNotoriete(fiches, [oeuvre('Le Seigneur des anneaux', ['J.R.R. Tolkien'], 500)]);
+    const titres = fusionnerDoublonsAffichage(notees, 'le seigneur des anneaux').map((c) => c.titre);
+    expect(titres).toHaveLength(2);
+    expect(titres.some((t) => t.includes('Retour du Roi'))).toBe(true);
+    expect(titres.some((t) => t.includes('tentation du mal'))).toBe(false);
   });
 });

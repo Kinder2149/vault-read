@@ -323,28 +323,53 @@ function cleAuteur(nom) {
  * sinon c'est le dernier mot. Un nom d'un seul mot n'a pas d'initiales et se
  * compare tel quel.
  */
-function clesAuteur(nom) {
-  const cles = new Set();
+/*
+ * TRANCHE 32 — des initiales COMPATIBLES, et non plus identiques.
+ *
+ * Mesure du 2026-09-19 : le filtre du hors-sujet ecartait trois vraies
+ * editions, toutes pour la meme cause — l'auteur ecrit autrement :
+ *   « JRR Tolkien »       lu « tolkien|j »   contre « J.R.R. » -> « tolkien|jrr »
+ *   « George Martin »     lu « martin|g »    contre « George R. R. » -> « martin|grr »
+ *   « Emile Emile Zola »  lu « zola|ee »     contre « Emile Zola » -> « zola|e »
+ * L'egalite stricte des initiales les separait.
+ *
+ * Regle : meme nom de famille, ET l'une des deux series d'initiales COMMENCE PAR
+ * l'autre (« g » avec « grr », « jr » avec « jrr »). Un prenom different reste
+ * different (« jean » n'est pas « george », « jk » n'est pas « jrr »). Et une
+ * serie VIDE ne rapproche rien : « Martin » seul reste ecarte, sinon on
+ * retrouverait l'homonyme que les initiales sont la pour eviter.
+ *
+ * Un mot repete de suite (« Emile Emile Zola ») compte pour un seul.
+ *
+ * Cette regle ne sert qu'a la notoriete et au filtre : la cle de FUSION des
+ * fiches (cleAuteur, plus haut) est inchangee, elle exige plus de certitude.
+ */
+function profilAuteur(nom) {
   const complet = cleAuteur(nom);
-  if (complet) cles.add(complet);
-
   const brut = String(nom || '');
   const avantVirgule = brut.includes(',') ? brut.split(',')[0] : null;
-  const mots = normaliser(brut, false).split('-').filter(Boolean);
-  if (mots.length === 0) return cles;
+  const mots = normaliser(brut, false).split('-').filter(Boolean)
+    .filter((m, i, tous) => i === 0 || m !== tous[i - 1]);
+  if (mots.length === 0) return null;
 
-  const famille = avantVirgule
-    ? normaliser(avantVirgule, false).split('-').filter(Boolean).join('')
-    : mots[mots.length - 1];
-  if (!famille) return cles;
+  const familleVirgule = avantVirgule
+    ? normaliser(avantVirgule, false).split('-').filter(Boolean)
+    : null;
+  const famille = familleVirgule ? familleVirgule.join('') : mots[mots.length - 1];
+  if (!famille) return null;
 
-  const autres = avantVirgule
+  const autres = familleVirgule
     ? mots.filter((m) => !famille.startsWith(m) || m.length > 2)
-      .filter((m) => !normaliser(avantVirgule, false).split('-').includes(m))
+      .filter((m) => !familleVirgule.includes(m))
     : mots.slice(0, -1);
-  const initiales = autres.map((m) => m[0]).join('');
-  cles.add(`${famille}|${initiales}`);
-  return cles;
+  return { complet, famille, initiales: autres.map((m) => m[0]).join('') };
+}
+
+function memeAuteur(a, b) {
+  if (a.complet && a.complet === b.complet) return true;
+  if (a.famille !== b.famille) return false;
+  if (!a.initiales || !b.initiales) return !a.initiales && !b.initiales;
+  return a.initiales.startsWith(b.initiales) || b.initiales.startsWith(a.initiales);
 }
 
 /*
@@ -857,27 +882,29 @@ export function attribuerNotoriete(resultats, oeuvres) {
    * sur dix). On garde la PLUS LUE : c'est celle qui dit la notoriete de
    * l'ecrivain pour cette recherche.
    */
-  const parAuteur = new Map();
+  const auteursOL = [];
   oeuvres.forEach((o, rang) => {
-    (o.auteurs || []).forEach((nom) => clesAuteur(nom).forEach((cle) => {
-      if (!cle) return;
-      // Un auteur peut porter plusieurs oeuvres de la reponse (Martin en a six
-      // sur dix). On garde la MIEUX CLASSEE : c'est elle qui dit la place de
-      // l'ecrivain dans la reponse a cette recherche.
-      const connu = parAuteur.get(cle);
-      if (!connu || rang < connu.rang) parAuteur.set(cle, { rang, lecteurs: o.lecteurs });
-    }));
+    (o.auteurs || []).forEach((nom) => {
+      const profil = profilAuteur(nom);
+      if (profil) auteursOL.push({ profil, rang, lecteurs: o.lecteurs });
+    });
   });
-  if (parAuteur.size === 0) return resultats || [];
+  if (auteursOL.length === 0) return resultats || [];
 
   return (resultats || []).map((r) => {
     // Un livre a plusieurs auteurs : le mieux classe decide. Une edition
     // annotee « Zola, Emile / Untel » ne doit pas perdre Zola en chemin.
+    // Un auteur peut porter plusieurs oeuvres de la reponse (Martin en a six
+    // sur dix). On garde la MIEUX CLASSEE : c'est elle qui dit la place de
+    // l'ecrivain dans la reponse a cette recherche.
     let meilleur = null;
-    (r.auteurs || []).forEach((nom) => clesAuteur(nom).forEach((cle) => {
-      const trouve = parAuteur.get(cle);
-      if (trouve && (!meilleur || trouve.rang < meilleur.rang)) meilleur = trouve;
-    }));
+    (r.auteurs || []).forEach((nom) => {
+      const profil = profilAuteur(nom);
+      if (!profil) return;
+      auteursOL.forEach((o) => {
+        if (memeAuteur(profil, o.profil) && (!meilleur || o.rang < meilleur.rang)) meilleur = o;
+      });
+    });
     if (!meilleur) return r;
     /*
      * `rangAuteur` est ce qui PESE dans le score ; `lecteurs` n'est la que pour
