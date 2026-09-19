@@ -3,13 +3,13 @@
 # JAMAIS entrer dans le depot, et le magasin de cles non plus.
 #
 # Creer le magasin de cles, une fois pour toutes, hors du depot :
-#   keytool -genkeypair -v -keystore V:/DEV/keys/suivi-lecture.jks \
-#           -alias suivi-lecture -keyalg RSA -keysize 2048 -validity 10000
+#   keytool -genkeypair -v -keystore V:/DEV/keys/vault-read.jks \
+#           -alias vault-read -keyalg RSA -keysize 2048 -validity 10000
 #
 # Perdre cette cle interdit toute mise a jour de l'application sur le Play
 # Store. La sauvegarder ailleurs que sur ce poste.
 
-storeFile=../../keys/suivi-lecture.jks
+storeFile=../../keys/vault-read.jks
 storePassword=
-keyAlias=suivi-lecture
+keyAlias=vault-read
 keyPassword=

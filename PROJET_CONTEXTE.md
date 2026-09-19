@@ -5,9 +5,11 @@
 > révèle fausse à l'usage.
 >
 > **Dépôt** : https://github.com/Kinder2149/TBDB-_-The-Book-DataBase
-> **État au 2026-08-21** : les huit tranches du §8 sont écrites et vérifiées sur
-> appareil, plus une série de corrections d'usage (§12). Ce qui reste à faire
-> est listé au §11 — c'est court, et cela dépend du matériel de Kinder.
+> **État au 2026-09-19** : les huit tranches du §8 sont écrites et vérifiées sur
+> appareil, suivies de corrections d'usage (§12, tranches 8 à 30). 299
+> vérifications automatiques passent. Ce qui reste à faire est listé au §11 et
+> dépend du matériel de Kinder. Journal court : `CHANGELOG.md`.
+> Les **décisions figées** sont au §9.
 >
 > Ce projet est le **second** d'une famille. Le premier — « Suivi Films & Séries » —
 > est en production sur Android. Son document d'extraction technique
@@ -20,12 +22,16 @@
 ## 0. L'application en une phrase
 
 Application **React mono-page, 100 % locale et hors-serveur**, empaquetée en
-**application Android via Capacitor**, qui interroge **Google Books** (et
-**Open Library** en secours) directement depuis le client, et stocke toute la
-bibliothèque de l'utilisateur dans un **SQLite embarqué dans l'appareil**.
+**application Android via Capacitor**, qui interroge directement depuis le
+client **trois catalogues publics** — **Google Books** (découverte),
+**Open Library** (identité et ordre des résultats) et la **BnF** (filet quand
+Google tombe, tranche 19) — et stocke toute la bibliothèque de l'utilisateur
+dans un **SQLite embarqué dans l'appareil**.
 
 Aucun compte, aucune synchronisation, aucun serveur, aucun abonnement.
-Aucune donnée ne quitte l'appareil.
+Aucune donnée de la bibliothèque ne quitte l'appareil : seuls les termes
+cherchés (ou l'ISBN scanné) partent vers les trois catalogues, sans aucun
+identifiant d'utilisateur.
 
 ---
 
@@ -45,7 +51,8 @@ Aucune donnée ne quitte l'appareil.
 | CSS | **un seul fichier global écrit à la main**, nommage BEM, tokens en variables CSS |
 | Dates | manipulation de chaînes ISO, aucune librairie |
 | Icônes | SVG maison, **aucun émoji** (rendus en carré vide sur certains Android) |
-| Lint / tests | aucun (assumé) |
+| Tests | **Vitest** (ajouté à la tranche 14, dépendance de développement uniquement), sans aucun appel réseau réel — `npm test` |
+| Lint | aucun (assumé) |
 
 **Règle de dépendances : on n'ajoute une dépendance que si elle est native
 (Capacitor) ou impossible à écrire en moins de 50 lignes.** Le projet séries
@@ -64,6 +71,7 @@ Quatre couches, dans cet ordre strict :
 composants (.jsx)  →  api.js  →  store.js  →  db.js
                         ↘  books.js  →  sources/google.js
                                         sources/openlibrary.js
+                                        sources/bnf.js   (filet, tranche 19)
 ```
 
 **Règles absolues :**
@@ -79,7 +87,8 @@ composants (.jsx)  →  api.js  →  store.js  →  db.js
    projet séries de supprimer un serveur Express entier sans toucher un seul
    écran. Toute fonction de la façade injecte elle-même le profil actif.
 3. **Un seul `fetch` par source externe**, dans `sources/*.js`. Nulle part ailleurs.
-4. **`books.js` est le seul endroit qui connaît l'existence de deux sources.**
+4. **`books.js` est le seul endroit qui connaît l'existence de plusieurs sources
+   (trois depuis la tranche 19).**
    `store.js` et l'UI ne savent pas d'où vient une donnée.
 5. **`api.js` est le seul à orchestrer les deux branches.** Une fonction qui a
    besoin du réseau *et* de la base appelle `books.js` puis `store.js`, dans cet
@@ -169,7 +178,13 @@ client/
 │   ├── books.js              ← orchestration des sources + normalisation
 │   ├── sources/
 │   │   ├── google.js
-│   │   └── openlibrary.js
+│   │   ├── openlibrary.js
+│   │   └── bnf.js            ← ajouté à la tranche 19 (filet quand Google tombe)
+│   ├── tomes.js  auteurs.js  statistiques.js  scanner.js
+│   │                         ← ajoutés aux tranches 7 à 28 : calculs purs (tomes, tri,
+│   │                           filtre du hors-sujet, regroupement par auteur, statistiques)
+│   │                           et scan ISBN. Importés directement par `Recherche.jsx`
+│   │                           et `Statistiques.jsx` : écart à la règle 1 du §2, à trancher.
 │   ├── types.js              ← @typedef JSDoc — voir §7
 │   ├── status.js             ← les 4 statuts + règles dérivées
 │   ├── backup.js
@@ -504,6 +519,13 @@ Date Read, Bookshelves`), en annonçant ce qui est écarté.
 ---
 
 ## 4. Sources de données
+
+> **Mise à jour du 2026-09-19 : il y a trois sources, pas deux.** La BnF a été
+> ajoutée à la tranche 19 comme **filet** (quand Google tombe, et en troisième
+> chance sur les ISBN) ; elle est sans clé, sans quota, et ne fournit ni
+> couverture ni résumé. Open Library a de plus le rôle d'**ordre** des
+> résultats (tranche 28). Le texte ci-dessous décrit l'origine ; le §12 fait
+> foi pour ce qui a changé depuis.
 
 **Répartition des rôles — décision structurante :**
 
@@ -1222,7 +1244,13 @@ seront tranchés quand ils se présenteront :
 
 ---
 
-## 11. Ce qui reste à faire — état au 2026-08-20
+## 11. Ce qui reste à faire — état au 2026-08-20, relu le 2026-09-19
+
+> Relecture du 2026-09-19 : **aucun des points ci-dessous n'est confirmé
+> traité** dans la doc ni dans les fichiers. Le point 2 seul est déjà marqué
+> résolu. À jour de l'audit du même jour : `versionCode` vaut encore 1, la clé
+> de signature nommée `suivi-lecture` ou `vault-read` n'est pas dans
+> `V:\DEV\keys\`, la page de confidentialité ne cite pas la BnF.
 
 Les huit tranches du §8 sont écrites, et chacune a été vérifiée sur appareil
 avant de passer à la suivante. Trois choses ne peuvent pas l'être depuis un
@@ -2282,6 +2310,37 @@ compléments).
 
 ---
 
+### Tranche 30 — 2026-09-07 (enregistrée le 2026-09-19) : une carte par livre, et le hors-sujet écarté
+
+Deux retours d'usage, vérifiés sur appels réels le 2026-09-07 sur « game of
+thrones ». Le travail a été enregistré dans l'historique de versions le
+2026-09-19 ; il n'avait pas été consigné ici avant.
+
+| # | Symptôme rapporté | Cause | Correction |
+|---|---|---|---|
+| 128 | Les éditions d'un même livre ne sont pas regroupées : on voudrait une seule carte par livre et choisir l'édition dans la fiche | Les mentions d'édition (« Édition de luxe », « illustrée », « poche »…) et les nombres restaient dans la clé de fusion : cinq éditions du même tome faisaient cinq cartes | Le titre est réduit à l'œuvre **pour rapprocher seulement** (jamais affiché) : parenthèses, mots d'édition, nombres et mots de deux lettres ou moins sont retirés. Le **numéro de tome reste dans la clé** : un tome 1 ne fusionne jamais avec un tome 3. Sans mot restant (« 1984 », « Ça »), on retombe sur le titre entier |
+| 129 | Des essais, guides et dérivés de la série télévisée remontent parmi les livres | Le score classait sans jamais filtrer | Un filtre `filtrerHorsSujet` retire ce qui n'est pas de l'auteur de l'œuvre cherchée, en s'appuyant sur le rang d'auteur d'Open Library. Appliqué à la recherche initiale **et** aux pages suivantes (`fusionnerResultats`), pour qu'une carte écartée le reste |
+
+**Garde-fous du filtre**, écrits dans le code : il ne fait **rien** sans signal
+d'auteur (Open Library muette, modes Auteur et ISBN) ; le titre exact ne
+rattrape un livre que tant qu'**aucun auteur dominant** n'est identifié ; si le
+filtre effaçait tout, la liste entière est rendue.
+
+**Tension avec la tranche 29, à connaître.** La tranche 29 avait *annulé* une
+mission « Open Library choisit les œuvres » : sur « le seigneur des anneaux »,
+88 % des cartes étaient écartées, dont **une vraie édition de Tolkien**, et la
+conclusion était « assez bon pour classer, trop faible pour filtrer ». Le filtre
+de la tranche 30 est **de la même famille** ; il y ajoute les garde-fous
+ci-dessus. Je n'ai retrouvé dans les fichiers **aucune mesure comparable** qui
+lève cette réserve — seulement des vérifications automatiques (9 ajoutées) et la
+vérification sur « game of thrones ». À mesurer avant de le juger acquis, sur
+les huit recherches du banc de la tranche 29.
+
+**Vérifications** : 290 → **299**, tous passants. Le banc de recherche
+(`npm run banc`, réseau réel) n'a pas été relancé pour cette tranche.
+
+---
+
 ## 13. Comment lire ce document
 
 Il a été écrit avant la première ligne de code, puis corrigé **120 fois** au fil
@@ -2293,7 +2352,7 @@ décisions que seule la confrontation au réel pouvait trancher.
 - Le **§10** journalise les arbitrages 1 à 60, avec pour chacun le point, la
   décision et la section touchée.
 - Le **§11** dit ce qui reste à faire, et par qui.
-- Le **§12** documente les corrections d'usage et les **tranches 8 à 29**,
+- Le **§12** documente les corrections d'usage et les **tranches 8 à 30**,
   celles nées de l'utilisation réelle de l'application et non des tests. Les
   deux dernières y ont été remontées depuis leurs plans de mission, supprimés
   une fois leur contenu ici.

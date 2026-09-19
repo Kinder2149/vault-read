@@ -1,10 +1,11 @@
 # Vault Read
 
 Application Android de suivi de lecture, **100 % locale**. Aucun compte, aucune
-synchronisation, aucun serveur. Rien ne quitte l'appareil.
+synchronisation, aucun serveur. La bibliothèque ne quitte jamais l'appareil ; seuls les termes cherchés partent vers les catalogues.
 
-Les décisions du projet vivent dans **[PROJET_CONTEXTE_VAULT_READ.md](PROJET_CONTEXTE_VAULT_READ.md)** —
+Les décisions du projet vivent dans **[PROJET_CONTEXTE.md](PROJET_CONTEXTE.md)** —
 c'est la référence, ce fichier n'en est que le mode d'emploi.
+L'historique court des étapes est dans [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
@@ -40,8 +41,8 @@ cd client/android && ./gradlew assembleDebug      # APK de test
    déjà utilisé.
 2. Créer le magasin de clés, une seule fois, **hors du dépôt** :
    ```bash
-   keytool -genkeypair -v -keystore V:/DEV/keys/suivi-lecture.jks \
-           -alias suivi-lecture -keyalg RSA -keysize 2048 -validity 10000
+   keytool -genkeypair -v -keystore V:/DEV/keys/vault-read.jks \
+           -alias vault-read -keyalg RSA -keysize 2048 -validity 10000
    ```
    Perdre cette clé interdit toute mise à jour de l'application. La sauvegarder
    ailleurs que sur ce poste.
@@ -71,4 +72,4 @@ publique, même pour une application qui ne collecte rien.
 | APK de test | ~18 Mo (quatre architectures) |
 | AAB de publication | ~9,4 Mo |
 | Dépendances de production | 11 |
-| Sources | Google Books (découverte) · Open Library (identité) |
+| Sources | Google Books (découverte) · Open Library (identité et ordre) · BnF (filet) |
