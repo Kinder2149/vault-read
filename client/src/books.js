@@ -206,11 +206,29 @@ function normaliser(texte, couperSousTitre) {
  * restaient cinq cartes distinctes du meme tome faute de ce depouillement.
  */
 const MOTS_EDITION = new Set([
-  'integrale', 'integrales', 'luxe', 'deluxe', 'illustree', 'illustre',
+  'luxe', 'deluxe', 'illustree', 'illustre',
   'edition', 'editions', 'poche', 'broche', 'brochee', 'relie', 'reliee',
-  'collector', 'coffret', 'grand', 'format', 'nouvelle', 'revue', 'augmentee',
+  'collector', 'grand', 'format', 'nouvelle', 'revue', 'augmentee',
   'definitive', 'anniversaire', 'tome', 'tomes', 'volume', 'vol',
 ]);
+
+/*
+ * TRANCHE 31 — « coffret » et « integrale » NE SONT PAS des mentions de format.
+ * Mesure du banc du 2026-09-19 : 14 cartes fautives, dont « Harry Potter » +
+ * « Harry Potter Coffret » (couverture du coffret sur le livre seul) et
+ * « Les fourmis » + « Les Fourmis - Integrale » (couverture ET resume de
+ * l'integrale sur le premier roman).
+ *
+ *  - un COFFRET reunit plusieurs livres : jamais « le » livre. Le mot reste
+ *    donc dans la cle, et le coffret garde sa carte ;
+ *  - une INTEGRALE sans numero reunit plusieurs romans : meme regle. Avec un
+ *    NUMERO (« Le Trone de fer l'Integrale Tome 1 ») c'est un tome numerote, et
+ *    sa fusion avec le tome 1 est ce qui a ete demande (tranche 30) : le mot
+ *    part alors, le numero reste.
+ * Principe herite de la tranche 29 : mieux vaut une carte en double qu'une
+ * fusion fausse.
+ */
+const MOTS_INTEGRALE = new Set(['integrale', 'integrales']);
 
 /*
  * Le titre reduit a l'OEUVRE, pour RAPPROCHER deux editions — jamais affiche.
@@ -219,21 +237,33 @@ const MOTS_EDITION = new Set([
  *  - les PARENTHESES partent (rappel de VO « (A game of Thrones) », mention
  *    d'annee, de collection) ;
  *  - les mentions d'EDITION partent (voir MOTS_EDITION) ;
- *  - les NOMBRES partent — le tome est porte a part dans la cle, donc les
- *    retirer ne confond jamais deux tomes, et cela evite qu'une annee ou un
- *    numero d'edition entre dans l'identite ;
+ *  - les ANNEES a quatre chiffres partent (« Guide 2024 ») ; les AUTRES NOMBRES
+ *    RESTENT (tranche 31) : les retirer faisait fusionner « L'integrale 1 » et
+ *    « L'integrale - 3 » quand le tome n'etait pas lu. « Tome 01 » et « Tome 1 »
+ *    donnent le meme nombre ;
  *  - les PETITS MOTS (2 lettres ou moins) partent : articles, prepositions et
  *    residus d'elision (« l'Integrale » -> « l », « de luxe » -> « de »)
  *    faisaient echouer le rapprochement sur les vrais titres mesures le
  *    2026-09-07. Les retirer de PARTOUT, de facon identique, garde la cle
  *    coherente sans rien confondre — l'auteur et le tome departagent le reste.
+ *    Les nombres, eux, ne sont jamais des « petits mots » : « 1 » est garde ;
+ *  - « integrale » part SEULEMENT si un nombre reste dans le titre (voir
+ *    MOTS_INTEGRALE) ; « coffret » ne part jamais.
  * Ne rend JAMAIS une chaine vide (« 1984 », « Ca ») : on retombe alors sur le
  * titre entier normalise, quitte a moins regrouper, plutot que de tout fondre.
  */
+const ESTNOMBRE = /^\d+$/;
+const ESTANNEE = /^\d{4}$/;
+
 function titreOeuvre(titre) {
   const sansParentheses = String(titre || '').replace(/\([^)]*\)/g, ' ');
-  const filtre = normaliser(sansParentheses, false).split('-')
-    .filter((mot) => mot.length > 2 && !MOTS_EDITION.has(mot) && !/^\d+$/.test(mot))
+  const mots = normaliser(sansParentheses, false).split('-').filter(Boolean)
+    .filter((mot) => !ESTANNEE.test(mot))
+    .map((mot) => (ESTNOMBRE.test(mot) ? String(Number(mot)) : mot));
+  const numerote = mots.some((mot) => ESTNOMBRE.test(mot));
+  const filtre = mots
+    .filter((mot) => ESTNOMBRE.test(mot)
+      || (mot.length > 2 && !MOTS_EDITION.has(mot) && !(numerote && MOTS_INTEGRALE.has(mot))))
     .join('-');
   return filtre || normaliser(titre, false);
 }

@@ -4,7 +4,7 @@ Journal court : une ligne par étape. Le détail, les mesures et les raisons son
 dans `PROJET_CONTEXTE.md` (§8 pour les tranches 0 à 8, §12 pour les suivantes).
 Ce fichier ne contient aucune décision : il ne fait que renvoyer.
 
-Dernier état connu : **299 vérifications automatiques passent** (2026-09-19).
+Dernier état connu : **305 vérifications automatiques passent** (2026-09-19).
 Pas encore publié : `versionCode` 1, `versionName` « 1.0 ».
 
 ## Tranches de construction (§8)
@@ -41,10 +41,10 @@ Pas encore publié : `versionCode` 1, `versionName` « 1.0 ».
 - **2026-09-06** — Renommage de l'application : « Vault Read ».
 - **2026-09-07** — Tranche 30 (enregistrée le 2026-09-19) : une carte par livre,
   hors-sujet écarté. À mesurer avant de la juger acquise (voir §12).
+- **2026-09-19** — Tranche 31 (en attente des captures de Kinder) : coffrets et
+  intégrales ne fusionnent plus avec un livre seul ; banc adapté, 0 défaut sur 8
+  recherches. Le filtre du hors-sujet écarte beaucoup : à cadrer (voir §12).
 
 ## À venir
-
-- **Tranche 31** (cadrée le 2026-09-19, non implémentée) : coffrets et intégrales
-  ne fusionnent plus avec un livre seul. Critère écrit au §12.
 
 Voir `PROJET_CONTEXTE.md` §11 (publication) — rien n'est cadré au-delà.

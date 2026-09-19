@@ -6,7 +6,7 @@
 >
 > **Dépôt** : https://github.com/Kinder2149/vault-read
 > **État au 2026-09-19** : les huit tranches du §8 sont écrites et vérifiées sur
-> appareil, suivies de corrections d'usage (§12, tranches 8 à 30). 299
+> appareil, suivies de corrections d'usage (§12, tranches 8 à 31). 305
 > vérifications automatiques passent. Ce qui reste à faire est listé au §11 et
 > dépend du matériel de Kinder. Journal court : `CHANGELOG.md`.
 > Les **décisions figées** sont au §9.
@@ -2393,11 +2393,11 @@ différents comme un défaut.
   adapter le banc pour qu'il ne compte plus comme défaut une fusion voulue et
   qu'il passe par la sortie d'affichage. Aucune correction n'est faite.
 
-### Tranche 31 — cadrée le 2026-09-19, NON implémentée : coffrets et intégrales ne fusionnent plus avec un livre seul
+### Tranche 31 — 2026-09-19 : coffrets et intégrales ne fusionnent plus avec un livre seul
 
-> **Statut : phase 5 de la méthode (cadrage d'étape) terminée, critère validé
-> par Kinder. Aucune ligne de code n'est écrite.** Origine : la mesure du banc
-> de la tranche 30 (14 cartes fautives).
+> **Statut : implémentée et testée le 2026-09-19 ; EN ATTENTE des captures de
+> Kinder (clôture).** Origine : la mesure du banc de la tranche 30 (14 cartes
+> fautives). Voir « Réalisation » en fin de section.
 
 **Problème.** `titreOeuvre` (books.js) retire du titre les mots « coffret » et
 « intégrale » ainsi que tous les nombres, pour rapprocher les éditions. Or :
@@ -2446,6 +2446,53 @@ changement des sources, de la façade ou des écrans.
 du banc) et le banc adapté pour le point 5 ; puis capture d'écran de Kinder sur
 « harry potter », « les fourmis » et « le trône de fer ». Test réussi ne vaut
 pas mission finie.
+
+#### Réalisation (2026-09-19)
+
+- **`books.js`** : « coffret » et « intégrale » quittent la liste des mots
+  d'édition ; « intégrale » n'est retirée que si un nombre reste dans le titre ;
+  les nombres restent dans la clé (sauf les années à quatre chiffres, et « 01 »
+  vaut « 1 »). Rien d'autre n'est touché.
+- **Tests** : 6 ajoutés dans `12-fusion.test.js` (299 → **305**, tous passants).
+  Les trois qui portent sur les défauts mesurés (coffret, intégrale sans numéro,
+  intégrale 1 contre 3) **échouent sur l'ancien code** et réussissent sur le
+  nouveau — vérifié en remettant temporairement l'ancien `books.js`. Le test
+  des éditions de luxe / illustrées / poche réussit sur les deux : c'est une
+  non-régression.
+- **Banc** : passe par `fusionnerDoublonsAffichage` (la sortie de l'écran, filtre
+  du hors-sujet compris) ; ne compte plus comme défaut une fusion d'éditions ;
+  sa liste de mots d'édition est **écrite dans le banc**, non importée, pour ne
+  pas valider une règle qu'il doit juger (elle ne contient ni « coffret », ni
+  « intégrale » sans numéro, ni les nombres) ; il affiche le nombre de cartes
+  avant et après le filtre.
+
+**Résultat du banc, réseau réel, le 2026-09-19 (point 5 du critère)** :
+
+```
+  recherche                    fusionnées -> après filtre  defauts  place du livre
+  « harry potter »                  35 -> 13                  0          1
+  « le seigneur des anneaux »       29 -> 12                  0          1
+  « le trone de fer »               38 -> 15                  0          1
+  « la quete d'ewilan »             18 -> 10                  0          1
+  « la passe-miroir »               16 -> 10                  0          1
+  « game of thrones »               37 ->  9                  0          1
+  « germinal »                      13 ->  5                  0          1
+  « les fourmis »                   37 ->  2                  0          1
+```
+
+De 14 cartes fautives à **0**, le livre cherché en 1ʳᵉ place sur les huit.
+**Réserve** : le banc emploie la même famille de règles que le code (parenthèses,
+années, mots d'édition) ; sa liste est écrite à part, mais « 0 défaut » ne
+remplace pas les captures de Kinder.
+
+**OBSERVATION NON TRAITÉE — le filtre du hors-sujet (tranche 30) écarte
+beaucoup** : sur « les fourmis », 37 cartes deviennent **2** ; sur « game of
+thrones », 37 deviennent 9 ; sur « harry potter », 35 deviennent 13. On ignore
+si les cartes écartées sont vraiment hors-sujet (essais, guides, documentaires
+homonymes) ou si de vraies éditions disparaissent — c'est le risque déjà relevé
+en tranche 29 (« une vraie édition de Tolkien serait effacée »). Un « 0 défaut »
+sur deux cartes ne prouve rien. **Aucune correction n'est faite** ; à cadrer
+séparément, avec un examen carte par carte de ce qui est écarté.
 
 ---
 

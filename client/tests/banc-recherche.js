@@ -39,7 +39,7 @@
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { fusionnerDoublons, attribuerNotoriete } from '../src/books.js';
+import { fusionnerDoublons, fusionnerDoublonsAffichage, attribuerNotoriete } from '../src/books.js';
 import { oeuvresNotoires } from '../src/sources/openlibrary.js';
 import { numeroDeTome, scorePertinence } from '../src/tomes.js';
 
@@ -163,15 +163,46 @@ const court = (t, n) => { const s = String(t || ''); return s.length <= n ? s : 
 const titreReduit = (t) => sansAccent(t).replace(/[^a-z0-9]+/g, ' ').trim();
 
 /*
+ * LE TITRE DE L'OEUVRE, tel que le BANC l'entend — tranche 31.
+ *
+ * Le banc comptait comme defaut TOUTE fusion de titres differents, y compris
+ * celles qui sont voulues (« Germinal » + « Germinal illustree »). Il ne
+ * distinguait donc plus le voulu du fautif. Ce titre-ci retire ce que le
+ * critere de Kinder appelle une simple EDITION du meme livre : parentheses,
+ * annees, mentions de format, mots de deux lettres ou moins.
+ *
+ * Il ne retire PAS « coffret », ni « integrale » sans numero, ni les nombres :
+ * ce sont exactement les fusions fausses mesurees le 2026-09-19. La liste est
+ * ECRITE ICI, volontairement, et non importee de books.js : un banc qui
+ * emprunterait la regle qu'il doit juger la validerait toujours.
+ */
+const MOTS_FORMAT = new Set([
+  'luxe', 'deluxe', 'illustree', 'illustre', 'edition', 'editions', 'poche',
+  'broche', 'brochee', 'relie', 'reliee', 'collector', 'grand', 'format',
+  'nouvelle', 'revue', 'augmentee', 'definitive', 'anniversaire',
+  'tome', 'tomes', 'volume', 'vol',
+]);
+function titreDeLOeuvre(t) {
+  const mots = sansAccent(String(t || '').replace(/\([^)]*\)/g, ' '))
+    .replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(Boolean)
+    .filter((m) => !/^\d{4}$/.test(m))
+    .map((m) => (/^\d+$/.test(m) ? String(Number(m)) : m));
+  const numerote = mots.some((m) => /^\d+$/.test(m));
+  const gardes = mots.filter((m) => /^\d+$/.test(m)
+    || (m.length > 2 && !MOTS_FORMAT.has(m) && !(numerote && /^integrales?$/.test(m))));
+  return gardes.join(' ') || titreReduit(t);
+}
+
+/*
  * L'EXAMEN D'UNE CARTE. Rend la liste de ses defauts, en clair.
  * `membres` = les fiches brutes que la fusion a reunies sous cette carte.
  */
 function examiner(carte, membres) {
   const defauts = [];
-  const titreCarte = titreReduit(carte.titre);
+  const titreCarte = titreDeLOeuvre(carte.titre);
 
   // 1. La fusion a-t-elle reuni des fiches de titres DIFFERENTS ?
-  const titres = [...new Set(membres.map((m) => titreReduit(m.titre)))];
+  const titres = [...new Set(membres.map((m) => titreDeLOeuvre(m.titre)))];
   if (titres.length > 1) {
     defauts.push({
       type: 'FUSION',
@@ -192,7 +223,7 @@ function examiner(carte, membres) {
   for (const [champ, valeur] of [['couverture', carte.couvertureUrl], ['resume', carte.resume]]) {
     if (!valeur) continue;
     const donneur = membres.find((m) => m[champ === 'couverture' ? 'couvertureUrl' : 'resume'] === valeur);
-    if (donneur && titreReduit(donneur.titre) !== titreCarte) {
+    if (donneur && titreDeLOeuvre(donneur.titre) !== titreCarte) {
       defauts.push({
         type: 'EMPRUNT',
         detail: `${champ} prise sur « ${court(donneur.titre, 60)} »`,
@@ -243,7 +274,9 @@ for (const { texte, cible } of RECHERCHES) {
   try { oeuvres = await oeuvresNotoires(texte); } catch { oeuvres = []; }
 
   const notes = attribuerNotoriete(brut, oeuvres);
-  const cartes = fusionnerDoublons(notes, texte);
+  // La sortie d'AFFICHAGE : fusion puis filtre du hors-sujet, comme l'ecran.
+  const cartes = fusionnerDoublonsAffichage(notes, texte);
+  const avantFiltre = fusionnerDoublons(notes, texte).length;   // pour voir ce que le filtre ecarte
 
   // Retrouver, pour chaque carte, les fiches brutes qu'elle a absorbees.
   const parCle = new Map(brut.map((r) => [r.cleSource, r]));
@@ -264,7 +297,7 @@ for (const { texte, cible } of RECHERCHES) {
     .findIndex((e) => estLaCible(e.carte, cible));
 
   console.log(gris(
-    `  ${brut.length} volumes -> ${cartes.length} cartes`
+    `  ${brut.length} volumes -> ${avantFiltre} cartes fusionnees -> ${cartes.length} apres filtre du hors-sujet`
     + `   | notoriete : ${oeuvres.length ? `${oeuvres.length} oeuvres` : rouge('Open Library muette')}`,
   ));
 

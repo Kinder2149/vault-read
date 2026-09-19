@@ -184,3 +184,79 @@ describe('Les EDITIONS d-un meme livre ne font qu-une carte (mission « regroupe
     expect(fusionnerDoublons([roman, abrege], 'germinal')).toHaveLength(2);
   });
 });
+
+describe('Tranche 31 — coffrets et integrales ne fusionnent pas avec un livre seul', () => {
+  /*
+   * Les titres sont ceux relevés par le banc du 2026-09-19. Un test par point
+   * du critère de validation écrit par Kinder (PROJET_CONTEXTE.md, tranche 31).
+   */
+
+  // Critère 1 — « harry potter » : le coffret a sa propre carte et sa couverture.
+  it('un COFFRET garde sa carte, et le livre seul ne prend pas sa couverture', () => {
+    const seul = fiche({ titre: 'Harry Potter', auteurs: ['J. K. Rowling'] });
+    const coffret = fiche({
+      titre: 'Harry Potter Coffret', auteurs: ['J. K. Rowling'],
+      couvertureUrl: 'https://exemple/coffret.jpg',
+    });
+    const cartes = fusionnerDoublons([seul, coffret], 'harry potter');
+    expect(cartes).toHaveLength(2);
+    expect(carteDe(cartes, seul.cleSource).couvertureUrl).toBeNull();
+    expect(carteDe(cartes, coffret.cleSource).couvertureUrl).toBe('https://exemple/coffret.jpg');
+  });
+
+  // Critère 2 — « les fourmis » : l'intégrale a sa carte, le roman garde la sienne.
+  it('une INTEGRALE sans numero garde sa carte, et le roman ne lui emprunte rien', () => {
+    const roman = fiche({ titre: 'Les fourmis', auteurs: ['Bernard Werber'] });
+    const integrale = fiche({
+      titre: 'Les Fourmis - Intégrale', auteurs: ['Bernard Werber'],
+      couvertureUrl: 'https://exemple/integrale.jpg', resume: 'Les trois romans.',
+    });
+    const cartes = fusionnerDoublons([roman, integrale], 'les fourmis');
+    expect(cartes).toHaveLength(2);
+    const carteRoman = carteDe(cartes, roman.cleSource);
+    expect(carteRoman.couvertureUrl).toBeNull();
+    expect(carteRoman.resume).toBeNull();
+  });
+
+  // Critère 3 — « le trône de fer » : intégrale 1 et intégrale 3 sont deux cartes.
+  it('l-integrale 1 et l-integrale 3 restent deux cartes, tome lu ou non', () => {
+    const i1 = fiche({ titre: "Le Trône de Fer (L'intégrale 1 illustrée)", auteurs: ['George R. R. Martin'] });
+    const i3 = fiche({ titre: "Le Trone de Fer, L'Integrale - 3", auteurs: ['George R. R. Martin'] });
+    expect(fusionnerDoublons([i1, i3], 'le trone de fer')).toHaveLength(2);
+
+    const a = fiche({ titre: "Le Trône de Fer, L'Intégrale - 1", auteurs: ['George R. R. Martin'] });
+    const b = fiche({ titre: "Le Trône de Fer, L'Intégrale - 3", auteurs: ['George R. R. Martin'] });
+    expect(fusionnerDoublons([a, b], 'le trone de fer')).toHaveLength(2);
+  });
+
+  // Critère 4 — « game of thrones » et « germinal » : les éditions d'un même livre restent groupées.
+  it('les editions de luxe, illustrees et poche d-un meme livre restent sur une carte', () => {
+    const germinal = [
+      fiche({ titre: 'Germinal', auteurs: ['Émile Zola'] }),
+      fiche({ titre: 'Germinal illustrée', auteurs: ['Émile Zola'] }),
+      fiche({ titre: 'Germinal (Édition française) (Illustré)', auteurs: ['Émile Zola'] }),
+      fiche({ titre: 'Germinal (French)', auteurs: ['Émile Zola'] }),
+      fiche({ titre: 'Germinal 2020', auteurs: ['Émile Zola'] }),
+    ];
+    expect(fusionnerDoublons(germinal, 'germinal')).toHaveLength(1);
+
+    const got = [
+      fiche({ titre: 'A Game of Thrones', auteurs: ['George R. R. Martin'] }),
+      fiche({ titre: 'Game of Thrones', auteurs: ['George R. R. Martin'] }),
+      fiche({ titre: 'Game of Thrones - Edition de luxe', auteurs: ['George R. R. Martin'] }),
+    ];
+    expect(fusionnerDoublons(got, 'game of thrones')).toHaveLength(1);
+  });
+
+  it('un nombre ecrit « 01 » ou « 1 » reste le meme tome', () => {
+    const a = fiche({ titre: "La Quête d'Ewilan - Tome 01", auteurs: ['Pierre Bottero'] });
+    const b = fiche({ titre: "La Quête d'Ewilan - Tome 1", auteurs: ['Pierre Bottero'] });
+    expect(fusionnerDoublons([a, b], "la quete d'ewilan")).toHaveLength(1);
+  });
+
+  it('un titre fait d-un seul nombre reste lisible (« 1984 »)', () => {
+    const a = fiche({ titre: '1984', auteurs: ['George Orwell'] });
+    const b = fiche({ titre: '1984', auteurs: ['George Orwell'] });
+    expect(fusionnerDoublons([a, b], '1984')).toHaveLength(1);
+  });
+});
