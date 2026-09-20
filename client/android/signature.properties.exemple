@@ -9,7 +9,7 @@
 # Perdre cette cle interdit toute mise a jour de l'application sur le Play
 # Store. La sauvegarder ailleurs que sur ce poste.
 
-storeFile=../../keys/vault-read.jks
+storeFile=V:/DEV/keys/vault-read.jks
 storePassword=
 keyAlias=vault-read
 keyPassword=
