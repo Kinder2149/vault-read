@@ -43,7 +43,7 @@ export default function Detail({ oeuvre, bibliotheque, onFerme, onChange, onProg
 
   const charger = useCallback(async () => {
     try {
-      const [e, c, l, m] = await Promise.all([
+      const [e, l, m] = await Promise.all([
         getEditions(oeuvre.oeuvreId), getListes(), getListesDeLOeuvre(oeuvre.oeuvreId),
       ]);
       setEditions(e);
