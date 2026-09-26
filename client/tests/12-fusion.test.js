@@ -100,6 +100,29 @@ describe('Ce qui DOIT fusionner', () => {
     const c = fiche({ titre: 'Germinal', sousTitre: 'roman', auteurs: ['Zola'] });
     expect(fusionnerDoublons([a, b, c], 'germinal')).toHaveLength(1);
   });
+
+  it('trois editions du MEME TOME fusionnent malgre trois ecritures de l-auteur (retour de Kinder)', () => {
+    // Constat sur l-ecran : trois vignettes pour « Le Seigneur des Anneaux,
+    // Tome 1 », une par edition, l-auteur ecrit a chaque fois autrement.
+    const a = fiche({
+      titre: 'Le Seigneur des Anneaux, Tome 1', auteurs: ['John Ronald Reuel Tolkien'],
+    });
+    const b = fiche({ titre: 'Le seigneur des anneaux. Tome 1', auteurs: ['J. R. R. Tolkien'] });
+    const c = fiche({ titre: 'Le Seigneur des Anneaux T1', auteurs: ['Tolkien, John Ronald Reuel'] });
+    expect(fusionnerDoublons([a, b, c], 'le seigneur des anneaux')).toHaveLength(1);
+  });
+
+  it('une edition dont le titre COMPLET porte aussi le sous-titre du tome reste separee — limite connue', () => {
+    // Decision figee du 2026-09-26 (PROJET_CONTEXTE.md §9, point 2) : on accepte
+    // qu'un titre tres different (ici, la mention du tome suivie du sous-titre
+    // du tome SANS separateur) ne fusionne pas, plutot que de payer un appel
+    // reseau supplementaire pour le detecter.
+    const a = fiche({ titre: 'Le Seigneur des Anneaux, Tome 1', auteurs: ['Tolkien'] });
+    const c = fiche({
+      titre: "Le Seigneur des Anneaux T1 La Fraternité de l'Anneau", auteurs: ['Tolkien'],
+    });
+    expect(fusionnerDoublons([a, c], 'le seigneur des anneaux')).toHaveLength(2);
+  });
 });
 
 describe('Ce que la carte affiche', () => {

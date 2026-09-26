@@ -16,7 +16,9 @@ import * as bnf from './sources/bnf.js';
  * dans un fichier de presentation : c'est l'inverse, on emprunte un calcul.
  * Il sert a designer, dans un groupe de doublons, la fiche qui fera la carte.
  */
-import { numeroDeTome, scorePertinence, filtrerHorsSujet } from './tomes.js';
+import {
+  numeroDeTome, filtrerHorsSujet, completude, anneeDe,
+} from './tomes.js';
 
 /** @typedef {import('./types.js').ResultatRecherche} ResultatRecherche */
 /** @typedef {import('./types.js').Identite} Identite */
@@ -255,8 +257,20 @@ const MOTS_INTEGRALE = new Set(['integrale', 'integrales']);
 const ESTNOMBRE = /^\d+$/;
 const ESTANNEE = /^\d{4}$/;
 
+/*
+ * « T1 », « T.5 » — meme motif que MOTIFS[1] dans tomes.js (majuscule exigee,
+ * un « t » minuscule apparaissant dans trop de mots courants). Sans cette
+ * separation, « T1 » reste un seul mot alphanumerique : ni un nombre pur (donc
+ * jete, faute de faire plus de deux caracteres) ni reconnu comme un marqueur
+ * de tome. Deux editions ecrites « Tome 1 » et « T1 » se retrouvaient alors
+ * avec un titre normalise different, et ne fusionnaient plus.
+ */
+const MOTIF_T_COMPACT = /\bT\.?\s*0*(\d{1,3})\b/g;
+
 function titreOeuvre(titre) {
-  const sansParentheses = String(titre || '').replace(/\([^)]*\)/g, ' ');
+  const sansParentheses = String(titre || '')
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(MOTIF_T_COMPACT, ' $1 ');
   const mots = normaliser(sansParentheses, false).split('-').filter(Boolean)
     .filter((mot) => !ESTANNEE.test(mot))
     .map((mot) => (ESTNOMBRE.test(mot) ? String(Number(mot)) : mot));
@@ -268,13 +282,32 @@ function titreOeuvre(titre) {
   return filtre || normaliser(titre, false);
 }
 
+/*
+ * TITRE + TOME SEULS, sans l'auteur : sert a former des groupes candidats
+ * avant de departager l'auteur au cas par cas (voir fusionnerDoublons, etape
+ * "une vignette par tome"). Une cle exacte sur l'auteur fusionnait moins que
+ * prevu : une source ecrit "John Ronald Reuel Tolkien", une autre
+ * "J. R. R. Tolkien" — memes mots, ordre trie different de memeAuteur.
+ */
+function cleTitreTome(titre, sousTitre = null) {
+  const t = titreOeuvre(titre);
+  if (!t) return null;
+  const tome = numeroDeTome(`${titre || ''} ${sousTitre || ''}`);
+  return `grp:${t}|t${tome ?? ''}`;
+}
+
+/*
+ * TITRE + TOME + AUTEUR EXACT — la cle de rapprochement avec la BnF
+ * (`completerDepuisBnf`), qui reste une simple table de correspondance et n'a
+ * pas besoin du rapprochement tolerant de `memeAuteur` : une notice qui ne
+ * matche pas exactement ne comble rien, elle ne casse rien non plus.
+ */
 function cleRegroupement(titre, auteurs, sousTitre = null) {
   const premier = Array.isArray(auteurs) ? auteurs[0] : auteurs;
   const nom = cleAuteur(premier);
-  const t = titreOeuvre(titre);
+  const t = cleTitreTome(titre, sousTitre);
   if (!t || !nom) return null;
-  const tome = numeroDeTome(`${titre || ''} ${sousTitre || ''}`);
-  return `grp:${t}|${nom}|t${tome ?? ''}`;
+  return `${t}|${nom}`;
 }
 
 /*
@@ -392,7 +425,8 @@ function estVide(valeur) {
  * Regroupe les doublons d'une liste de resultats.
  *
  * @param {ResultatRecherche[]} resultats
- * @param {string} requete ce qui a ete tape — sert a choisir la fiche retenue
+ * @param {string} requete non utilise ici (garde pour compatibilite d'appel avec
+ *   `fusionnerDoublonsAffichage`, qui le transmet au filtre hors-sujet)
  * @returns {ResultatRecherche[]} un resultat par oeuvre, dans l'ordre d'arrivee
  *   de la premiere fiche du groupe. Chaque carte porte en plus `clesSource`,
  *   la liste des cles fusionnees : un livre deja suivi doit rester marque meme
@@ -432,13 +466,29 @@ export function fusionnerDoublons(resultats, requete = '') {
     });
   });
 
-  // 2. Le titre entier, l'auteur, le tome.
-  const parTitre = new Map();
+  // 2. Le titre entier et le tome forment des groupes candidats ; a
+  // l'interieur d'un groupe, on fusionne les fiches dont l'auteur est
+  // reconnu comme le meme ecrivain (memeAuteur, deja ecrite pour le filtre
+  // hors-sujet de la tranche 32) — pas seulement identique mot pour mot.
+  const parTitreTome = new Map();
   liste.forEach((r) => {
-    const cle = cleRegroupement(r.titre, r.auteurs, r.sousTitre);
-    if (!cle) return;   // sans titre ou sans auteur : la fiche reste seule
-    if (parTitre.has(cle)) unir(parTitre.get(cle), r.cleSource);
-    else parTitre.set(cle, r.cleSource);
+    const cle = cleTitreTome(r.titre, r.sousTitre);
+    if (!cle) return;   // sans titre : la fiche reste seule
+    if (!parTitreTome.has(cle)) parTitreTome.set(cle, []);
+    parTitreTome.get(cle).push(r);
+  });
+  parTitreTome.forEach((groupe) => {
+    const profils = groupe.map((r) => profilAuteur(
+      Array.isArray(r.auteurs) ? r.auteurs[0] : r.auteurs,
+    ));
+    for (let i = 0; i < groupe.length; i += 1) {
+      if (!profils[i]) continue;
+      for (let j = i + 1; j < groupe.length; j += 1) {
+        if (profils[j] && memeAuteur(profils[i], profils[j])) {
+          unir(groupe[i].cleSource, groupe[j].cleSource);
+        }
+      }
+    }
   });
 
   const groupes = new Map();
@@ -448,7 +498,7 @@ export function fusionnerDoublons(resultats, requete = '') {
     groupes.get(g).push(r);
   });
 
-  return [...groupes.values()].map((groupe) => fondre(groupe, requete));
+  return [...groupes.values()].map((groupe) => fondre(groupe));
 }
 
 /**
@@ -482,20 +532,25 @@ function clesDe(r) {
 }
 
 /* Une carte a partir d'un groupe de fiches du meme livre. */
-function fondre(groupe, requete) {
+function fondre(groupe) {
   if (groupe.length === 1) return { ...groupe[0], clesSource: clesDe(groupe[0]) };
 
   /*
-   * La fiche RETENUE est la mieux classee — le meme calcul que celui qui range
-   * l'ecran (tranche 1), pour que la carte affichee soit bien celle qui aurait
-   * gagne. A egalite, la premiere arrivee : l'ordre de Google reste une
-   * information.
+   * La fiche RETENUE est la plus COMPLETE (decision figee du 2026-09-26,
+   * PROJET_CONTEXTE.md §9) — pas la plus pertinente pour la requete : plusieurs
+   * editions du meme tome sont egalement pertinentes, ce qui les depatageait
+   * au hasard de l'ordre d'arrivee de Google. A completude egale, la plus
+   * recente gagne.
    */
   let base = groupe[0];
-  let meilleur = scorePertinence(base, requete);
+  let meilleur = completude(base);
+  let anneeBase = anneeDe(base);
   groupe.slice(1).forEach((r) => {
-    const note = scorePertinence(r, requete);
-    if (note > meilleur) { base = r; meilleur = note; }
+    const note = completude(r);
+    const annee = anneeDe(r);
+    if (note > meilleur || (note === meilleur && annee > anneeBase)) {
+      base = r; meilleur = note; anneeBase = annee;
+    }
   });
 
   const fondu = { ...base, clesSource: [...new Set(groupe.flatMap(clesDe))] };

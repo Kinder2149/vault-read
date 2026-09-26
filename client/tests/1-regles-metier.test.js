@@ -336,12 +336,20 @@ describe('Fusionner les doublons de recherche (tranche 2)', () => {
     expect(fusionnerDoublons(liste, 'les fourmis')).toHaveLength(3);
   });
 
-  it('retient la fiche la MIEUX CLASSEE, pas la premiere arrivee', () => {
+  it('retient la fiche la PLUS COMPLETE, pas la premiere arrivee', () => {
     const liste = [
-      fiche('gb:essai', { titre: 'Les Fourmis', sousTitre: 'analyse de l-oeuvre' }),
-      fiche('gb:roman'),
+      fiche('gb:pauvre'),
+      fiche('gb:riche', { isbn13: '9782253004226', editeur: 'Albin Michel', couvertureUrl: 'https://x/c.jpg' }),
     ];
-    expect(fusionnerDoublons(liste, 'les fourmis')[0].cleSource).toBe('gb:roman');
+    expect(fusionnerDoublons(liste, 'les fourmis')[0].cleSource).toBe('gb:riche');
+  });
+
+  it('a completude egale, retient la fiche la PLUS RECENTE', () => {
+    const liste = [
+      fiche('gb:ancienne', { annee: '1991', datePublication: '1991' }),
+      fiche('gb:recente', { annee: '2010', datePublication: '2010' }),
+    ];
+    expect(fusionnerDoublons(liste, 'les fourmis')[0].cleSource).toBe('gb:recente');
   });
 
   it('garde l-ordre d-arrivee des livres, pas seulement des fiches', () => {

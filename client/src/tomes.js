@@ -255,8 +255,11 @@ export const TRIS = [
   { cle: 'recent', libelle: 'Plus récent' },
 ];
 
-/** Annee comparable d'un resultat, ou 0 s'il n'en a pas. */
-function anneeDe(r) {
+/**
+ * Annee comparable d'un resultat, ou 0 s'il n'en a pas.
+ * Exportee : sert aussi a departager deux editions d'un meme tome (books.js).
+ */
+export function anneeDe(r) {
   const brut = r.datePublication || r.annee || '';
   const m = String(brut).match(/(\d{4})/);
   return m ? Number(m[1]) : 0;
@@ -439,8 +442,10 @@ function notoriete(r) {
  * a la recherche, ils ne font jamais remonter un livre hors sujet.
  * L'auteur pese le plus : une notice sans auteur n'est presque jamais le livre
  * qu'on cherche.
+ * Exportee : sert aussi a choisir l'edition affichee par defaut quand
+ * plusieurs editions d'un meme tome fusionnent (books.js).
  */
-function completude(r) {
+export function completude(r) {
   let points = 0;
   if (Array.isArray(r.auteurs) ? r.auteurs.length : r.auteurs) points += 12;
   if (r.isbn13 || r.isbn10) points += 8;
