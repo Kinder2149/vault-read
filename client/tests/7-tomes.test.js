@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest';
 import {
   numeroDeTome, separerLesTomes, organiserLEcran, nomDeSerie, nombreDeTomes,
   serieAConfirmer, trierResultats,
-  scorePertinence, filtrerHorsSujet,
+  scorePertinence, filtrerHorsSujet, legendeCarte,
 } from '../src/tomes.js';
 
 describe('Lire un numero de tome dans un titre', () => {
@@ -542,5 +542,25 @@ describe('Faire disparaitre ce qui n-est pas l-oeuvre (mission « le bruit d-abo
 
   it('une recherche vide ne filtre rien', () => {
     expect(filtrerHorsSujet([roman, essai], '')).toHaveLength(2);
+  });
+});
+
+describe('La legende d-une carte de resultat (etape 2, regroupement par saga)', () => {
+  it('affiche le tome LU dans le titre pour un livre isole, sans mention deja fournie', () => {
+    // C-est le defaut rapporte : un livre isole avec un tome CONNU restait
+    // sans legende, il fallait ouvrir la fiche pour voir « Tome 1 ».
+    expect(legendeCarte({ titre: 'Le Seigneur des Anneaux, Tome 1' })).toBe('tome 1');
+  });
+
+  it('ne rend rien pour un livre sans tome detecte', () => {
+    expect(legendeCarte({ titre: 'Les Fourmis' })).toBeUndefined();
+  });
+
+  it('la mention deja decidee (bloc saga) garde la priorite sur le titre', () => {
+    expect(legendeCarte({ titre: 'Le Trône de Fer (Tome 5)' }, 'tome 5')).toBe('tome 5');
+    // Meme un titre AUTREMENT numerote ne doit pas ecraser une mention fournie
+    // — ex. la raison d-une suggestion, calculee ailleurs.
+    expect(legendeCarte({ titre: 'Le Trône de Fer (Tome 5)' }, 'Parce que vous avez lu Dune')
+      .startsWith('Parce que')).toBe(true);
   });
 });

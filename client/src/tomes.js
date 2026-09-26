@@ -83,6 +83,26 @@ export function numeroDeTome(titre) {
 }
 
 /**
+ * La legende d'une carte de resultat, a l'ecran de recherche.
+ *
+ * Retour d'usage (etape 2 du regroupement par saga, PROJET_CONTEXTE.md §9) :
+ * le numero de tome n'etait affiche que sur les cartes deja rangees dans un
+ * bloc saga constitue (organiserLEcran, 3 tomes distincts au moins) — un
+ * livre isole gardait un tome CONNU mais invisible, il fallait ouvrir la
+ * fiche pour le voir.
+ *
+ * @param {ResultatRecherche} resultat
+ * @param {string} [mention] la legende deja decidee pour ce contexte (un bloc
+ *   saga porte deja « tome N » ; les suggestions portent leur propre raison)
+ * @returns {string|undefined}
+ */
+export function legendeCarte(resultat, mention) {
+  if (mention) return mention;
+  const n = numeroDeTome(resultat?.titre);
+  return n ? `tome ${n}` : undefined;
+}
+
+/**
  * Separe les resultats en « une serie, dans l'ordre » et « le reste ».
  *
  * Le seuil de TROIS tomes est deliberé : avec deux, on peut tomber sur deux

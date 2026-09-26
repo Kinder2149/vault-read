@@ -17,7 +17,9 @@ import {
 } from '../api.js';
 import { LIBELLES, STATUTS, classeStatut, ageLisible } from '../status.js';
 import { grouperParAuteur } from '../auteurs.js';
-import { organiserLEcran, serieAConfirmer, trierResultats, TRIS } from '../tomes.js';
+import {
+  organiserLEcran, serieAConfirmer, trierResultats, TRIS, legendeCarte,
+} from '../tomes.js';
 import { notify } from '../notify.js';
 import SearchBar from '../components/SearchBar.jsx';
 import BookCard from '../components/BookCard.jsx';
@@ -414,7 +416,7 @@ export default function Recherche({ actif = true, editionsSuivies, onSuivre, onC
     <BookCard
       key={r.cleSource}
       resultat={r}
-      raison={mention}
+      raison={legendeCarte(r, mention)}
       marque={estSuivi(r)}
       onOuvrir={ouvrir}
       onAppuiLong={() => setCategorieCible(r)}
