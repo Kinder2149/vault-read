@@ -256,6 +256,43 @@ describe('L-ordre de l-ecran : une serie ne passe plus devant par principe', () 
   });
 });
 
+describe('Etape 4 (regroupement par saga) : le tri change l-ordre des blocs, jamais celui des tomes', () => {
+  const livre = (titre, annee, extra = {}) => ({
+    cleSource: titre, titre, sousTitre: null, auteurs: ['Un Auteur'],
+    annee, datePublication: annee, couvertureUrl: null, isbn13: null,
+    editeur: null, nbPages: null, langue: 'fr', ...extra,
+  });
+
+  it('« Plus recent » passe la saga la plus recente devant, sans desordonner ses tomes', () => {
+    // La saga « Ancienne » (2001) est plus pertinente pour la requete (le titre
+    // colle mieux), mais « Recente » (2020) doit passer devant en tri « recent ».
+    const liste = [
+      livre('Ancienne - Tome 1', '2001'), livre('Ancienne - Tome 2', '2001'),
+      livre('Ancienne - Tome 3', '2001'),
+      livre('Une Saga Recente - Tome 1', '2020'), livre('Une Saga Recente - Tome 2', '2005'),
+      livre('Une Saga Recente - Tome 3', '2020'),
+    ];
+    const pertinence = organiserLEcran(liste, 'ancienne', 'pertinence');
+    expect(pertinence[0].nom).toBe('Ancienne');
+
+    const recent = organiserLEcran(liste, 'ancienne', 'recent');
+    expect(recent[0].nom).toBe('Une Saga Recente');
+    // Les tomes de la saga qui passe devant restent dans l-ordre du numero.
+    expect(recent[0].tomes.map((t) => t.tome)).toEqual([1, 2, 3]);
+  });
+
+  it('« Plus recent » passe aussi un livre isole recent devant une saga plus ancienne', () => {
+    const liste = [
+      livre('Ancienne - Tome 1', '2001'), livre('Ancienne - Tome 2', '2001'),
+      livre('Ancienne - Tome 3', '2001'),
+      livre('Un livre isole tres recent', '2024'),
+    ];
+    const recent = organiserLEcran(liste, 'ancienne', 'recent');
+    expect(recent[0].type).toBe('livres');
+    expect(recent[0].livres[0].titre).toBe('Un livre isole tres recent');
+  });
+});
+
 describe('Reperer une serie PRESSENTIE, pour la confirmer tout de suite', () => {
   /*
    * Retour d'usage 116 : le bloc « La serie, dans l'ordre » surgissait apres

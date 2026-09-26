@@ -238,20 +238,33 @@ export function separerLesTomes(resultats) {
  * Une serie vaut desormais ce que vaut son MEILLEUR tome. Elle passe devant si
  * elle le merite, et derriere sinon.
  *
+ * ETAPE 4 (regroupement par saga, PROJET_CONTEXTE.md §9) : ce classement des
+ * BLOCS entre eux suivait toujours la pertinence textuelle, meme quand
+ * l'ecran affichait « Plus recent » — bascule sans effet visible. `tri`
+ * decide desormais du critere ; a l'INTERIEUR d'une saga, l'ordre reste
+ * toujours le numero de tome (separerLesTomes), quel que soit `tri`.
+ *
+ * @param {'pertinence'|'recent'} [tri]
  * @returns {Array<{type: 'serie', nom: string, tomes: Array, associees: Array}|{type: 'livres', livres: Array}>}
  *   les livres isoles consecutifs sont rassembles en une seule grille.
  */
-export function organiserLEcran(resultats, requete) {
+export function organiserLEcran(resultats, requete, tri = 'pertinence') {
   const { series, autres } = separerLesTomes(resultats || []);
+
+  // Le MEILLEUR element du bloc porte sa note : le plus recent des tomes
+  // d'une saga, ou le plus pertinent — jamais un melange des deux criteres.
+  const noter = (items) => (tri === 'recent'
+    ? Math.max(...items.map((r) => anneeDe(r)))
+    : Math.max(...items.map((r) => scorePertinence(r, requete))));
 
   const blocs = [
     ...series.map((s) => ({
       bloc: {
         type: 'serie', cle: s.cle, nom: s.nom, tomes: s.tomes, associees: s.associees,
       },
-      note: Math.max(...s.tomes.map((t) => scorePertinence(t, requete))),
+      note: noter(s.tomes),
     })),
-    ...autres.map((r) => ({ bloc: { type: 'livre', livre: r }, note: scorePertinence(r, requete) })),
+    ...autres.map((r) => ({ bloc: { type: 'livre', livre: r }, note: noter([r]) })),
   ];
 
   // Sans requete, l'ordre d'arrivee fait foi (mode Auteur) : on ne classe pas.

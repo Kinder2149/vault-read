@@ -106,9 +106,9 @@ export default function Recherche({ actif = true, editionsSuivies, onSuivre, onC
    */
   const blocs = useMemo(
     () => (mode !== 'auteur' && triees.length > 0
-      ? organiserLEcran(triees, derniereRequete)
+      ? organiserLEcran(triees, derniereRequete, tri)
       : [{ type: 'livres', livres: triees }]),
-    [mode, triees, derniereRequete],
+    [mode, triees, derniereRequete, tri],
   );
 
   const groupes = useMemo(
