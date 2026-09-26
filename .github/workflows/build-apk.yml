@@ -29,7 +29,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
+      # Le SDK Android est deja installe sur les machines GitHub
+      # (ANDROID_HOME preconfigure) ; Gradle telecharge lui-meme la plateforme
+      # et les build-tools manquants. `android-actions/setup-android` tentait
+      # en plus d'installer le paquet "tools", que Google ne distribue plus
+      # depuis longtemps, et faisait echouer le build pour rien.
 
       - name: Installer les dependances
         run: npm ci
