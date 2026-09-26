@@ -1008,6 +1008,35 @@ l'ajout d'un livre ne pose jamais de question · un écran n'importe que la faç
 qu'un résumé vide, et on ne traduit pas · une donnée corrigée à la main n'est
 jamais écrasée par une lecture automatique.
 
+**Regroupement des résultats de recherche par saga (cadré le 2026-09-26,
+pas encore planifié en tranches) :**
+
+Origine : constat de Kinder sur l'écran Recherche — trop de vignettes pour un
+même tome (une par édition), numéro de tome invisible sans ouvrir la fiche,
+intégrales mélangées aux tomes bruts.
+
+1. Une seule vignette par tome, numéro de tome visible sans clic. Quand
+   plusieurs éditions existent pour un même tome, l'édition affichée par
+   défaut est celle jugée la plus complète (couverture + résumé + année
+   connus), et à égalité la plus récente ; l'édition reste choisissable
+   depuis la fiche, comme aujourd'hui pour les livres déjà en bibliothèque.
+2. Le regroupement s'appuie sur le mécanisme déjà en place (titre/auteur
+   normalisé, `tomes.js` + `empreinteOeuvre`) — **pas** de résolution via un
+   identifiant externe (ISBN/Open Library) pour fusionner les rééditions à
+   titre très différent : le coût réseau supplémentaire aggraverait la
+   lenteur déjà signalée. Certaines rééditions à titre très différent peuvent
+   donc rester non regroupées.
+3. Les œuvres associées à une saga (intégrales, coffrets, hors-séries portant
+   le même nom de saga) s'affichent à la suite des tomes de cette saga.
+   N'entrent pas dans « associées » : les autres livres du même auteur hors
+   saga.
+4. À l'intérieur d'une saga, les tomes restent toujours triés par numéro de
+   tome, quel que soit le tri actif (« Pertinence » / « Plus récent ») ; seul
+   le tri change l'ordre des blocs (sagas et livres isolés) entre eux.
+5. La lenteur de la recherche est un sujet distinct (architecture d'appel aux
+   trois sources), traité séparément — pas dans le cadrage de ce
+   regroupement.
+
 **Héritées du projet séries :**
 
 *Une exception, constatée en tranche 2 : la « `Map` du suivi en mémoire » ne se

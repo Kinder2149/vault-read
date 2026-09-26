@@ -48,6 +48,12 @@ Pas encore publié : `versionCode` 1, `versionName` « 1.0 ».
   hors-sujet reconnaît mieux l'auteur ; les 3 vraies éditions écartées à tort
   réapparaissent, rien d'autre ne bouge. Option `npm run banc -- --ecartees`.
 
+- **2026-09-26** — Cadrage figé : regroupement des résultats de recherche par
+  saga (une vignette par tome, tri des tomes indépendant de l'édition,
+  intégrales à la suite). Pas encore planifié en tranches (voir
+  `PROJET_CONTEXTE.md` §9).
+
 ## À venir
 
 Voir `PROJET_CONTEXTE.md` §11 (publication) — rien n'est cadré au-delà.
+Regroupement par saga (ci-dessus) : à découper en étapes (phase 4).
