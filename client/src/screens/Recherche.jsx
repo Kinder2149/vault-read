@@ -682,6 +682,8 @@ export default function Recherche({ actif = true, editionsSuivies, onSuivre, onC
             </h2>
             <div className="grille">
               {b.tomes.map((r) => carteResultat(r, `tome ${r.tome}`))}
+              {/* Etape 3 : integrales et coffrets de la meme saga, a la suite de ses tomes. */}
+              {(b.associees || []).map((r) => carteResultat(r))}
             </div>
           </div>
         ) : (

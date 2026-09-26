@@ -134,6 +134,53 @@ describe('Separer une serie du reste', () => {
   });
 });
 
+describe('Rattacher une integrale ou un coffret a sa serie (etape 3, regroupement par saga)', () => {
+  const tome = (n, auteurs = ['Bernard Werber']) => (
+    { cleSource: `t${n}`, titre: `Les Fourmis - Tome ${n}`, auteurs }
+  );
+
+  it('une INTEGRALE du meme auteur rejoint la suite des tomes de sa serie', () => {
+    const bruts = [
+      tome(1), tome(2), tome(3),
+      { cleSource: 'i', titre: 'Les Fourmis - Intégrale', auteurs: ['Bernard Werber'] },
+    ];
+    const { series, autres } = separerLesTomes(bruts);
+    expect(series).toHaveLength(1);
+    expect(series[0].associees.map((r) => r.cleSource)).toEqual(['i']);
+    expect(autres).toHaveLength(0);
+  });
+
+  it('un COFFRET reste dans le tas commun si l-auteur differe', () => {
+    const bruts = [
+      tome(1), tome(2), tome(3),
+      { cleSource: 'c', titre: 'Les Fourmis - Coffret', auteurs: ['Un Autre Auteur'] },
+    ];
+    const { series, autres } = separerLesTomes(bruts);
+    expect(series[0].associees).toHaveLength(0);
+    expect(autres.map((r) => r.cleSource)).toEqual(['c']);
+  });
+
+  it('un livre du meme auteur mais d-une AUTRE saga reste dans le tas commun', () => {
+    const bruts = [
+      tome(1), tome(2), tome(3),
+      { cleSource: 'x', titre: 'La Bête humaine', auteurs: ['Bernard Werber'] },
+    ];
+    const { series, autres } = separerLesTomes(bruts);
+    expect(series[0].associees).toHaveLength(0);
+    expect(autres.map((r) => r.cleSource)).toEqual(['x']);
+  });
+
+  it('organiserLEcran porte les associees jusqu-au bloc serie', () => {
+    const bruts = [
+      tome(1), tome(2), tome(3),
+      { cleSource: 'i', titre: 'Les Fourmis - Intégrale', auteurs: ['Bernard Werber'] },
+    ];
+    const [bloc] = organiserLEcran(bruts, 'les fourmis');
+    expect(bloc.type).toBe('serie');
+    expect(bloc.associees.map((r) => r.cleSource)).toEqual(['i']);
+  });
+});
+
 describe('Lire le nom d-une serie dans un titre de tome', () => {
   it('coupe au marqueur de tome, et jette le sous-titre de l-episode', () => {
     expect(nomDeSerie('La Quete d Ewilan - Tome 01')).toBe('La Quete d Ewilan');

@@ -132,6 +132,33 @@ function cleDeSerie(titre) {
   return comparable(nomDeSerie(titre)).replace(/ /g, '-');
 }
 
+/*
+ * ETAPE 3 (regroupement par saga, PROJET_CONTEXTE.md §9) — les mots qui
+ * distinguent une VARIANTE d'une saga (integrale, coffret) sans en changer
+ * le nom : on les retire pour comparer « Les Fourmis - Integrale » a
+ * « Les Fourmis », le nom lu sur les tomes de la serie.
+ */
+const MOTS_ASSOCIEES = new Set(['integrale', 'integrales', 'coffret', 'coffrets', 'omnibus']);
+
+function sansMotsAssocies(titre) {
+  return mots(comparable(titre)).filter((m) => !MOTS_ASSOCIEES.has(m)).join(' ');
+}
+
+/*
+ * Une oeuvre SANS numero de tome (integrale, coffret) appartient-elle a une
+ * serie CONSTITUEE ? Il faut le meme premier auteur (comparaison stricte,
+ * pas la tolerance aux ecritures variees de la fusion des doublons — voir
+ * la reserve du cadrage) et le meme nom une fois les mots d'association
+ * retires.
+ */
+function appartientALaSerie(r, serie) {
+  const premier = (auteurs) => (Array.isArray(auteurs) ? auteurs[0] : auteurs);
+  const auteurR = comparable(premier(r.auteurs));
+  const auteurSerie = comparable(premier(serie.tomes[0].auteurs));
+  if (!auteurR || auteurR !== auteurSerie) return false;
+  return sansMotsAssocies(r.titre) === comparable(serie.nom);
+}
+
 /**
  * Separe les resultats en SERIES NOMMEES et « le reste ».
  *
@@ -150,7 +177,7 @@ function cleDeSerie(titre) {
  * desormais PAR SERIE : deux tomes peuvent etre deux livres sans rapport, trois
  * tomes du meme titre sont une serie.
  *
- * @returns {{series: Array<{cle: string, nom: string, tomes: Array}>, autres: Array}}
+ * @returns {{series: Array<{cle: string, nom: string, tomes: Array, associees: Array}>, autres: Array}}
  */
 export function separerLesTomes(resultats) {
   const parSerie = new Map();
@@ -167,7 +194,7 @@ export function separerLesTomes(resultats) {
   });
 
   const series = [];
-  const autres = [...sansNumero];
+  const autres = [];
 
   parSerie.forEach((tomes, cle) => {
     const distincts = new Set(tomes.map((t) => t.tome));
@@ -177,7 +204,23 @@ export function separerLesTomes(resultats) {
      * pertinence. Deux editions du meme tome restent voisines, la meilleure
      * en premier.
      */
-    series.push({ cle, nom: nomDeSerie(tomes[0].titre), tomes: [...tomes].sort((a, b) => a.tome - b.tome) });
+    series.push({
+      cle,
+      nom: nomDeSerie(tomes[0].titre),
+      tomes: [...tomes].sort((a, b) => a.tome - b.tome),
+      associees: [],
+    });
+  });
+
+  /*
+   * ETAPE 3 — une oeuvre SANS tome (integrale, coffret) qui appartient a une
+   * serie CONSTITUEE (§9) rejoint sa suite plutot que le tas commun, ou elle
+   * se retrouvait classee par pertinence, melangee au reste de l'ecran.
+   */
+  sansNumero.forEach((r) => {
+    const serie = series.find((s) => appartientALaSerie(r, s));
+    if (serie) serie.associees.push(r);
+    else autres.push(r);
   });
 
   return { series, autres };
@@ -195,7 +238,7 @@ export function separerLesTomes(resultats) {
  * Une serie vaut desormais ce que vaut son MEILLEUR tome. Elle passe devant si
  * elle le merite, et derriere sinon.
  *
- * @returns {Array<{type: 'serie', nom: string, tomes: Array}|{type: 'livres', livres: Array}>}
+ * @returns {Array<{type: 'serie', nom: string, tomes: Array, associees: Array}|{type: 'livres', livres: Array}>}
  *   les livres isoles consecutifs sont rassembles en une seule grille.
  */
 export function organiserLEcran(resultats, requete) {
@@ -203,7 +246,9 @@ export function organiserLEcran(resultats, requete) {
 
   const blocs = [
     ...series.map((s) => ({
-      bloc: { type: 'serie', cle: s.cle, nom: s.nom, tomes: s.tomes },
+      bloc: {
+        type: 'serie', cle: s.cle, nom: s.nom, tomes: s.tomes, associees: s.associees,
+      },
       note: Math.max(...s.tomes.map((t) => scorePertinence(t, requete))),
     })),
     ...autres.map((r) => ({ bloc: { type: 'livre', livre: r }, note: scorePertinence(r, requete) })),
