@@ -10,6 +10,7 @@
 import * as google from './sources/google.js';
 import * as ol from './sources/openlibrary.js';
 import * as bnf from './sources/bnf.js';
+import * as vaultapi from './sources/vaultapi.js';
 /*
  * `tomes.js` est un module PUR — aucun reseau, aucune base, aucune dependance.
  * L'importer ici ne cree donc pas de cycle et ne fait pas entrer une source
@@ -399,7 +400,14 @@ function estVide(valeur) {
  *   si c'est une AUTRE de ses fiches qui a ete retenue.
  */
 export function fusionnerDoublons(resultats, requete = '') {
-  const liste = resultats || [];
+  /*
+   * LES RESULTATS DU CATALOGUE VAULT BOOKS SONT DEJA DEDOUBLONNES (tranche 33) : une carte par oeuvre, un resultat par tome.
+   * Les passer dans ce calcul ne pourrait que les abimer — il lit le tome DANS LE TITRE, que ces titres ne portent pas, et
+   * pourrait reunir deux tomes de titres voisins. Ils traversent donc la fusion tels quels, avec leur liste de cles.
+   */
+  const tous = resultats || [];
+  const duCatalogue = tous.filter((r) => r.source === 'vaultapi').map((r) => ({ ...r, clesSource: clesDe(r) }));
+  const liste = tous.filter((r) => r.source !== 'vaultapi');
 
   /*
    * DEUX RAISONS DE FUSIONNER, ET ELLES SE CUMULENT :
@@ -448,7 +456,7 @@ export function fusionnerDoublons(resultats, requete = '') {
     groupes.get(g).push(r);
   });
 
-  return [...groupes.values()].map((groupe) => fondre(groupe, requete));
+  return [...duCatalogue, ...[...groupes.values()].map((groupe) => fondre(groupe, requete))];
 }
 
 /**
@@ -521,6 +529,13 @@ function fondre(groupe, requete) {
   return fondu;
 }
 
+/*
+ * Reglages du catalogue Vault Books, pour l'ecran Reglages (via api.js : books.js reste le SEUL endroit qui connait les sources).
+ */
+export function etatCatalogueApi() { return vaultapi.etat(); }
+export function definirCatalogueApiActif(oui) { vaultapi.definirActive(oui); }
+export function definirLangueCatalogue(langue) { vaultapi.definirLangue(langue); }
+
 /**
  * Recherche. Cache mémoire 30 min sur les résultats uniquement : les fiches
  * n'en ont pas besoin, elles seront en base (§3.5).
@@ -530,6 +545,23 @@ function fondre(groupe, requete) {
  */
 export async function rechercher(texte, mode, page = 0, auteur = '') {
   const requete = String(texte || '').trim();
+
+  /*
+   * LE CATALOGUE VAULT BOOKS D'ABORD, LE CHEMIN HISTORIQUE EN REPLI (tranche 33).
+   * Il ne prend que ce qu'il sait faire : la recherche par TITRE, premiere page, sans auteur precise — il n'a ni mode auteur,
+   * ni ISBN, ni filtre d'auteur, et rend d'un coup tout ce qu'il a (pas de page suivante : `nbSource` vaut 0).
+   * Toute defaillance — service coupe, trop lent, cle refusee, ou aucun resultat — laisse la main au chemin historique,
+   * qui fait ce qu'il faisait hier. L'utilisateur ne voit jamais une erreur de plus.
+   */
+  if (mode === 'titre' && requete && !auteur && page === 0 && vaultapi.active()) {
+    try {
+      const { resultats } = await vaultapi.rechercherTitre(requete);
+      if (resultats.length) {
+        void noterDansHistorique(requete, mode);
+        return { resultats, ancien: false, pose: Date.now(), nbSource: 0 };
+      }
+    } catch { /* repli sur les trois sources publiques */ }
+  }
 
   /*
    * LA NOTORIETE PART D'ICI, ET NON PLUS DE `rechercherBrut` (M2).

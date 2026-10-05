@@ -119,6 +119,25 @@ export async function fusionnerResultats(liste, texte) {
   return books.fusionnerDoublonsAffichage(liste, texte);
 }
 
+/*
+ * §2.1 s'enrichit (tranche 33) : le catalogue Vault Books — notre propre service, interroge AVANT les trois sources publiques.
+ * L'ecran Reglages montre s'il est disponible, permet de le couper, et de choisir la langue du catalogue (fr ou en).
+ * @returns {Promise<{configuree: boolean, active: boolean, langue: 'fr'|'en', langues: string[]}>}
+ */
+export async function getCatalogueApi() {
+  return books.etatCatalogueApi();
+}
+
+export async function setCatalogueApiActif(actif) {
+  books.definirCatalogueApiActif(Boolean(actif));
+  return books.etatCatalogueApi();
+}
+
+export async function setLangueCatalogue(langue) {
+  books.definirLangueCatalogue(langue);
+  return books.etatCatalogueApi();
+}
+
 /* Les dernieres recherches, pour les reproposer (retour d'usage 100). */
 export async function getHistoriqueRecherches() {
   return books.historiqueRecherches();

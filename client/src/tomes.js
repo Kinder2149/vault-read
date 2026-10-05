@@ -135,8 +135,22 @@ function cleDeSerie(titre) {
 export function separerLesTomes(resultats) {
   const parSerie = new Map();
   const sansNumero = [];
+  /*
+   * LES SAGAS ANNONCEES PAR LE CATALOGUE (source « vaultapi », tranche 33). Le service sait deja a quelle saga appartient
+   * chaque livre et a quelle place : on s'en sert tel quel, SANS relire le titre — les titres francais d'une saga ne
+   * portent presque jamais « Tome N » (« Le Feu dans le ciel », « Les dragons de l'Empereur Noir »…).
+   * Deux tomes suffisent a faire un bloc : l'incertitude du seuil de trois (deux livres sans rapport qui portent un numero)
+   * n'existe pas quand c'est le service, et non une expression reguliere, qui affirme l'appartenance.
+   */
+  const parService = new Map();
 
   (resultats || []).forEach((r) => {
+    if (r.serie && Number.isFinite(r.serie.position)) {
+      const cle = `va:${r.serie.id}`;
+      if (!parService.has(cle)) parService.set(cle, { nom: r.serie.nom, tomes: [] });
+      parService.get(cle).tomes.push({ ...r, tome: r.serie.position });
+      return;
+    }
     const n = numeroDeTome(r.titre);
     const cle = n === null ? '' : cleDeSerie(r.titre);
     // Un titre qui n'est QUE « Tome 3 » ne nomme aucune serie : il rejoint le
@@ -148,6 +162,11 @@ export function separerLesTomes(resultats) {
 
   const series = [];
   const autres = [...sansNumero];
+
+  parService.forEach(({ nom, tomes }, cle) => {
+    if (tomes.length < 2) { autres.push(...tomes); return; }
+    series.push({ cle, nom, tomes: [...tomes].sort((a, b) => a.tome - b.tome) });
+  });
 
   parSerie.forEach((tomes, cle) => {
     const distincts = new Set(tomes.map((t) => t.tome));
@@ -459,6 +478,8 @@ function completude(r) {
  * @returns {number}
  */
 export function scorePertinence(resultat, requete) {
+  // Le classement du catalogue Vault Books fait foi : il tient compte de la popularite des oeuvres, que ce calcul ne connait pas.
+  if (Number.isFinite(resultat.scoreApi)) return resultat.scoreApi;
   const q = comparable(requete);
   const titre = comparable(resultat.titre);
 

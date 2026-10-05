@@ -17,5 +17,12 @@ export default defineConfig({
     fileParallelism: false,
     // Une verification qui depasse 15 s est un signal, pas une lenteur normale.
     testTimeout: 15000,
+    /*
+     * LE CATALOGUE VAULT BOOKS EST ETEINT PAR DEFAUT DANS LES VERIFICATIONS (tranche 33). Vite lit `client/.env` : sans cette
+     * ligne, le fichier d'un developpeur qui a configure le service ferait passer TOUTES les recherches simulees par le
+     * catalogue, et les verifications des sources publiques ne verifieraient plus rien (constate : 3 echecs le jour ou le
+     * fichier a ete cree). La famille 13 le rallume elle-meme, cas par cas (`vi.stubEnv`).
+     */
+    env: { VITE_VAULT_API_URL: '', VITE_VAULT_API_KEY: '' },
   },
 });

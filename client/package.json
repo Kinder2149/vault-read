@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:suivi": "vitest",
     "controle-sources": "node tests/controle-sources.js",
+    "controle-catalogue": "vite-node tests/controle-catalogue.js",
     "banc": "node tests/banc-recherche.js"
   },
   "dependencies": {

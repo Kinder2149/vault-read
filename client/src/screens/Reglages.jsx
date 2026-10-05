@@ -11,6 +11,7 @@
 import Icon from '../components/Icon.jsx';
 import ProfileSelector from '../components/ProfileSelector.jsx';
 import CacheRecherche from '../components/CacheRecherche.jsx';
+import CatalogueApi from '../components/CatalogueApi.jsx';
 
 export default function Reglages({
   theme, basculerTheme, bibliotheque, quota, etat,
@@ -68,6 +69,8 @@ export default function Reglages({
             tant que ta bibliothèque n’a pas changé.
           </p>
         </div>
+
+        <CatalogueApi />
 
         <CacheRecherche />
 

@@ -2616,6 +2616,50 @@ des listes à trois cartes près est néanmoins un bon signe. Le banc reste à
 
 ---
 
+### Tranche 33 — 2026-10-05 : le catalogue Vault Books, interrogé avant les trois sources publiques
+
+**Décision.** Après un week-end d'essais, la recherche reste mauvaise pour une raison de fond : Google Books, Open Library et la BnF ne sont pas
+faits pour retrouver un livre. L'ordre d'une saga se devine par une expression régulière sur le titre, la couverture se rattache à l'œuvre et non
+à l'édition (« Les Chevaliers d'Émeraude » : couvertures du mauvais tome), et tout le tri vit dans l'application. Le tri est donc **sorti** de
+l'application, dans un service à part : `vault-books-api` (https://github.com/Kinder2149/vault-books-api, déployé sur Vercel + Supabase, source
+principale Hardcover, BnF pour les éditions françaises). Sa conception, ses mesures et ses tests sont dans ce dépôt-là (`PROJET_CONTEXTE.md`, `docs/`).
+
+**Ce que fait la tranche** (branche `feature/catalogue-api`, aucun écran réécrit) :
+
+- **`sources/vaultapi.js`** — quatrième source, un seul `fetch`, deux normaliseurs. Rend des `ResultatRecherche` DÉJÀ rangés : une saga devient un
+  résultat par tome (dans l'ordre, avec son édition, son ISBN, son éditeur et sa couverture), un livre isolé une carte. Au plus trois sagas sont
+  dépliées par recherche. Un tome sans édition dans la langue, ou pas encore paru, ne s'affiche pas ; un tome qui n'existe en français qu'en volumes
+  coupés (Le Trône de fer) présente son premier volume.
+- **`books.js`** — `rechercher` interroge le catalogue EN PREMIER, mais seulement pour ce qu'il sait faire : mode **titre**, **première page**, **sans
+  auteur précisé**. Toute défaillance (service coupé, trop lent — 9 s —, clé refusée, aucun résultat, ou non configuré) laisse la main au chemin
+  historique, inchangé : l'utilisateur ne voit jamais une erreur de plus. `nbSource` vaut 0 (le catalogue rend tout d'un coup : pas de page suivante).
+  `fusionnerDoublons` laisse passer ces résultats sans les fondre (ils sont déjà dédoublonnés et leurs titres ne portent pas de numéro de tome).
+- **`tomes.js`** — `separerLesTomes` fait confiance au champ `serie` rendu par le catalogue (deux tomes suffisent à faire un bloc, la lecture du
+  titre n'intervient pas) ; `scorePertinence` rend `scoreApi` tel quel quand il existe : le classement du service tient compte de la popularité
+  des œuvres, que ce calcul ne connaît pas. `types.js` documente les trois champs facultatifs ajoutés (`serie`, `scoreApi`, `couvertureApproximative`).
+- **Réglages** — `components/CatalogueApi.jsx` : interrupteur (pour comparer avec l'ancien comportement) et **langue du catalogue** (français ou
+  anglais). Le composant n'apparaît pas si l'application n'a pas d'adresse de service. Trois fonctions ajoutées à la façade `api.js`
+  (`getCatalogueApi`, `setCatalogueApiActif`, `setLangueCatalogue`) : §2.1 s'enrichit, aucune signature existante ne bouge.
+- **Configuration** — `VITE_VAULT_API_URL` et `VITE_VAULT_API_KEY` dans `client/.env` (modèle dans `.env.example`). La clé d'application n'est PAS un
+  secret : un APK ne garde rien de secret, elle ne sert qu'à limiter l'abus du service.
+
+**Vérifié.** 335 vérifications automatiques passent (311 + 24, famille 13 : saga en bloc, tomes dans l'ordre, repli sur chaque défaillance, modes non
+concernés, interrupteur, langue). Contrôle sur le VRAI service (`npm run controle-catalogue`, à lancer à la main) : les 12 tomes des Chevaliers
+d'Émeraude en français avec éditeur et ISBN, les 3 du Seigneur des anneaux, les 5 du Trône de fer, Dune (6), Harry Potter (7), Hunger Games (5),
+Discworld (37) ; 55 à 280 ms à chaud, 1 à 5 s la première fois.
+
+**Pas fait, volontairement (suites possibles).**
+
+- **Éditions d'un livre** (`getEditionsProposees`) : toujours la BnF directe. Le service a `/v1/books/:id` (Hardcover + BnF, couverture par édition), à brancher.
+- **Mode ISBN et mode auteur** : le service n'a pas encore ces routes ; ils passent par les sources publiques.
+- **Livre déjà suivi** : `estSuivi` compare des clés d'édition ; un livre suivi via Google (`gb:…`) n'est pas marqué « suivi » sur un résultat du catalogue (`vb:…`).
+  L'ajout, lui, ne crée pas de doublon (même identité d'œuvre). Comparer aussi par ISBN réglerait l'affichage.
+- **Résumé** : le service n'en rend pas ; `completer` le prend toujours chez Open Library.
+- **Hors ligne** : l'archive de 7 jours ne retient que les résultats des sources publiques ; le catalogue a son propre cache côté serveur.
+- **Bruit connu côté service** (à régler là-bas) : quelques séries parasites (« Reborn! » sur « le petit prince »), des coffrets en 5 volumes.
+- **Branche `claude/search-results-saga-organization-…`** (non fusionnée, 9 commits du 2026-09-26) : regroupe les sagas côté application, ce qui chevauche cette
+  tranche. À arbitrer par Kinder ; elle n'a pas été touchée.
+
 ## 13. Comment lire ce document
 
 Il a été écrit avant la première ligne de code, puis corrigé **120 fois** au fil

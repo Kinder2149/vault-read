@@ -12,8 +12,8 @@
  * Ce que rend une recherche. Produit UNIQUEMENT par un normaliseur de
  * sources/*.js — jamais construit à la main ailleurs (§7, garde-fou 2).
  * @typedef {Object} ResultatRecherche
- * @property {string}   cleSource        "gb:<volumeId>" ou "ol:<olid>"
- * @property {'google'|'openlibrary'} source
+ * @property {string}   cleSource        "gb:<volumeId>", "ol:<olid>", "bnf:<ark>" ou "vb:<id de livre>" (catalogue Vault Books)
+ * @property {'google'|'openlibrary'|'bnf'|'vaultapi'} source
  * @property {string}   titre
  * @property {string|null} sousTitre
  * @property {string[]} auteurs          liste, éventuellement vide
@@ -27,6 +27,11 @@
  * @property {string|null} isbn10
  * @property {number|null} nbPages       jamais 0 : Google rend 0 pour « inconnu »
  * @property {string|null} editeur
+ * Champs FACULTATIFS, rendus seulement par le catalogue Vault Books (source 'vaultapi') :
+ * @property {{id:number, nom:string, position:number, total:number|null}} [serie]
+ *           la saga a laquelle appartient ce livre, et sa place : fait foi sur la lecture du numero dans le titre
+ * @property {number}   [scoreApi]       classement donne par le service : fait foi sur `scorePertinence`
+ * @property {boolean}  [couvertureApproximative]  la couverture vient du livre canonique, pas de cette edition
  */
 
 /**
