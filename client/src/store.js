@@ -253,10 +253,20 @@ export function getEditions(profileId, oeuvreId) {
  */
 export async function listerClesEditions(profileId) {
   const lignes = await query(
-    'SELECT edition_id AS editionId FROM editions WHERE profile_id = ?;',
+    'SELECT edition_id AS editionId, isbn13 FROM editions WHERE profile_id = ?;',
     [profileId],
   );
-  return lignes.map((l) => l.editionId);
+  /*
+   * Les cles d'edition, PLUS une cle `isbn:<isbn13>` par edition qui en porte un (tranche 33). Les cles d'edition sont propres a une
+   * source (« gb:… », « ol:… », « vb:… ») : un livre ajoute via Google n'etait donc pas reconnu comme suivi sur le meme livre rendu
+   * par le catalogue Vault Books. L'ISBN, lui, est le meme partout. C'est une cle de MARQUAGE : elle n'est jamais ecrite en base.
+   */
+  const cles = lignes.map((l) => l.editionId);
+  lignes.forEach((l) => {
+    const isbn = String(l.isbn13 || '').replace(/[^0-9Xx]/g, '');
+    if (isbn.length >= 10) cles.push(`isbn:${isbn}`);
+  });
+  return cles;
 }
 
 /*

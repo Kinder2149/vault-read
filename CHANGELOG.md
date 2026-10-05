@@ -4,7 +4,7 @@ Journal court : une ligne par étape. Le détail, les mesures et les raisons son
 dans `PROJET_CONTEXTE.md` (§8 pour les tranches 0 à 8, §12 pour les suivantes).
 Ce fichier ne contient aucune décision : il ne fait que renvoyer.
 
-Dernier état connu : **335 vérifications automatiques passent** (2026-10-05, branche `feature/catalogue-api`, pas encore fusionnée dans `main`).
+Dernier état connu : **344 vérifications automatiques passent** (2026-10-05, branche `feature/catalogue-api`, pas encore fusionnée dans `main`).
 Pas encore publié : `versionCode` 1, `versionName` « 1.0 ».
 
 ## Tranches de construction (§8)
@@ -50,7 +50,8 @@ Pas encore publié : `versionCode` 1, `versionName` « 1.0 ».
 - **2026-10-05** — Tranche 33 (branche `feature/catalogue-api`, en attente de Kinder) : le
   catalogue Vault Books — notre propre service — interrogé avant Google, Open Library
   et la BnF pour la recherche par titre ; sagas en blocs, tomes dans l'ordre, langue
-  au choix ; repli sur les sources publiques à la moindre défaillance. 335 vérifications.
+  au choix ; éditions proposées par le catalogue ; livre déjà suivi reconnu par l'ISBN ;
+  repli sur les sources publiques à la moindre défaillance. 344 vérifications.
 
 ## À venir
 

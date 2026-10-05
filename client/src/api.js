@@ -290,14 +290,21 @@ export async function getEditionsProposees(oeuvreId) {
   const oeuvre = await store.getOeuvre(profileId, oeuvreId);
   if (!oeuvre) return [];
 
-  const premierAuteur = String(oeuvre.auteurs || '').split(',')[0].trim();
-  const proposees = await books.editionsDe(oeuvre.titre, premierAuteur);
+  const possedees = await store.getEditions(profileId, oeuvreId);
+
+  /*
+   * Le catalogue Vault Books d'abord, quand le livre en vient (tranche 33) : ses editions arrivent avec leur couverture, une par
+   * ISBN. Sinon — livre ajoute par une autre source, catalogue eteint ou coupe — la BnF directe, comme avant.
+   */
+  let proposees = await books.editionsDuCatalogue(possedees.map((e) => e.editionId));
+  if (!proposees) {
+    const premierAuteur = String(oeuvre.auteurs || '').split(',')[0].trim();
+    proposees = await books.editionsDe(oeuvre.titre, premierAuteur);
+  }
 
   // Ce qu'on possede deja ne se propose pas une seconde fois.
-  const deja = new Set((await store.getEditions(profileId, oeuvreId)).map((e) => e.editionId));
-  const dejaIsbn = new Set(
-    (await store.getEditions(profileId, oeuvreId)).map((e) => e.isbn13).filter(Boolean),
-  );
+  const deja = new Set(possedees.map((e) => e.editionId));
+  const dejaIsbn = new Set(possedees.map((e) => e.isbn13).filter(Boolean));
   return proposees.filter((p) => !deja.has(p.cleSource) && !(p.isbn13 && dejaIsbn.has(p.isbn13)));
 }
 

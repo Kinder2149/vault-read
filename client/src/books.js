@@ -406,7 +406,11 @@ export function fusionnerDoublons(resultats, requete = '') {
    * pourrait reunir deux tomes de titres voisins. Ils traversent donc la fusion tels quels, avec leur liste de cles.
    */
   const tous = resultats || [];
-  const duCatalogue = tous.filter((r) => r.source === 'vaultapi').map((r) => ({ ...r, clesSource: clesDe(r) }));
+  // En plus de sa cle, chaque resultat porte isbn:<isbn13> : c'est ce qui le fait reconnaitre comme suivi quand le livre a ete ajoute par une autre source.
+  const duCatalogue = tous.filter((r) => r.source === 'vaultapi').map((r) => {
+    const i = cleIsbn(r.isbn13);
+    return { ...r, clesSource: i ? [...clesDe(r), `isbn:${i}`] : clesDe(r) };
+  });
   const liste = tous.filter((r) => r.source !== 'vaultapi');
 
   /*
@@ -1230,6 +1234,25 @@ async function notorieteDe(requete) {
  *
  * @returns {Promise<ResultatRecherche[]>}
  */
+/*
+ * LES EDITIONS PROPOSEES PAR LE CATALOGUE VAULT BOOKS (tranche 33), quand le livre en vient : l'une de ses editions porte une cle
+ * « vb:<id> ». Rend `null` — et l'appelant retombe sur `editionsDe`, la BnF directe — des qu'il y a le moindre doute : catalogue
+ * eteint, livre ajoute par une autre source, service coupe, livre inconnu, ou aucune edition rendue.
+ * @param {string[]} clesEditions les cles d'edition deja possedees pour ce livre
+ * @returns {Promise<ResultatRecherche[]|null>}
+ */
+export async function editionsDuCatalogue(clesEditions) {
+  if (!vaultapi.active()) return null;
+  const cle = (clesEditions || []).find((k) => /^vb:\d+$/.test(k));
+  if (!cle) return null;
+  try {
+    const liste = await vaultapi.editionsDuLivre(Number(cle.slice(3)));
+    return liste && liste.length ? liste : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function editionsDe(titre, auteur) {
   const propre = String(titre || '').split(':')[0].trim();
   if (!propre) return [];

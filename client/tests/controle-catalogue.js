@@ -11,7 +11,7 @@
  * non configure, elle l'annonce : le repli par les sources publiques prendrait alors le relais dans l'application.
  */
 import './preparation.js';
-import { rechercher, etatCatalogueApi } from '../src/books.js';
+import { rechercher, etatCatalogueApi, editionsDuCatalogue } from '../src/books.js';
 import { organiserLEcran } from '../src/tomes.js';
 
 const vert = (t) => `\x1b[32m${t}\x1b[0m`;
@@ -46,5 +46,14 @@ for (const texte of REQUETES) {
     }
   });
 }
+// Les editions proposees pour le premier tome de la premiere saga (le parcours « ajouter une edition »).
+const premiere = (await rechercher(REQUETES[0], 'titre')).resultats.find((x) => x.serie);
+if (premiere) {
+  const t0 = Date.now();
+  const editions = await editionsDuCatalogue([premiere.cleSource]);
+  console.log(`\nEditions proposees pour « ${premiere.titre} » : ${editions ? editions.length : 'aucune (repli BnF)'} en ${Date.now() - t0} ms`);
+  (editions || []).slice(0, 6).forEach((e) => console.log(gris(`   ${String(e.datePublication || '----').slice(0, 4)} | ${String(e.editeur || '?').padEnd(24).slice(0, 24)} | ${e.isbn13} | couv ${e.couvertureUrl ? 'oui' : 'NON'}${e.couvertureApproximative ? ' (approx.)' : ''}`)));
+}
+
 console.log(echecs ? rouge(`\n${echecs} recherche(s) sont passees par le repli.`) : vert('\nToutes les recherches viennent du catalogue.'));
 process.exit(echecs ? 1 : 0);

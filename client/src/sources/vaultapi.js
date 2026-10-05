@@ -167,6 +167,41 @@ function resultatsDeSerie(carte, serie, lang) {
 }
 
 // ---------------------------------------------------------------------------
+// Editions d'un livre
+// ---------------------------------------------------------------------------
+
+/**
+ * Les editions qu'on pourrait posseder d'un livre du catalogue : Hardcover + BnF reunis cote service, une par ISBN, chacune avec
+ * sa couverture (celle de l'EDITION, jamais celle d'un autre tome). La cle `vbe:<isbn13>` est propre a l'edition : `vb:<id>` est celle
+ * du livre tel que la recherche l'a rendu.
+ * @param {number} livreId identifiant du livre dans le catalogue (la partie apres « vb: »)
+ * @returns {Promise<ResultatRecherche[]|null>} null si le service ne connait pas ce livre
+ */
+export async function editionsDuLivre(livreId) {
+  const lang = langue();
+  const livre = await apiGet(`/v1/books/${livreId}?lang=${lang}`);
+  if (!livre) return null;
+  return (livre.editions || []).filter((e) => e.isbn13).map((e) => ({
+    cleSource: `vbe:${e.isbn13}`,
+    source: 'vaultapi',
+    titre: e.titre || livre.titreLangue || livre.titre,
+    sousTitre: null,
+    auteurs: livre.auteurs || [],
+    annee: anneeDe(e.date),
+    datePublication: e.date || null,
+    couvertureUrl: https(e.couverture && e.couverture.url),
+    resume: null,
+    categories: [],
+    langue: lang,
+    isbn13: e.isbn13,
+    isbn10: null,
+    nbPages: null,
+    editeur: e.editeur || null,
+    couvertureApproximative: Boolean(e.couverture && e.couverture.approximative),
+  }));
+}
+
+// ---------------------------------------------------------------------------
 // Recherche
 // ---------------------------------------------------------------------------
 

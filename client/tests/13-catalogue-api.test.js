@@ -173,7 +173,9 @@ describe('Le classement et le regroupement de l-ecran suivent le catalogue', () 
     const { resultats } = await rechercherTitre('x');
     const fondus = fusionnerDoublons(resultats, 'x');
     expect(fondus).toHaveLength(resultats.length);
-    expect(fondus.every((f) => Array.isArray(f.clesSource) && f.clesSource.length === 1)).toBe(true);
+    // Chaque resultat garde sa propre cle, plus une cle de marquage par ISBN (voir la famille 14).
+    expect(fondus.every((f, i) => f.clesSource[0] === resultats[i].cleSource && f.clesSource.includes(`isbn:${resultats[i].isbn13}`))).toBe(true);
+    expect(fondus.every((f) => f.clesSource.length === 2)).toBe(true);
   });
 });
 
