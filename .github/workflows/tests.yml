@@ -1,0 +1,28 @@
+name: Verifications
+
+# Les verifications automatiques de l'application (npm test dans client/) tournent a chaque push de branche et a chaque demande de fusion.
+# Aucun appel reseau reel, aucun secret : ce sont les memes que celles lancees a la main.
+# Ce fichier est distinct de celui qui fabrique l'APK (build-apk.yml, sur une autre branche) : il ne touche ni a Java ni a Android.
+on:
+  push:
+    branches-ignore:
+      - 'archive/**'
+  pull_request:
+
+jobs:
+  verifications:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npx vitest run
+      - run: npm run build
