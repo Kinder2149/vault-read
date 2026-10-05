@@ -973,6 +973,18 @@ async function interroger(requete, mode, page = 0, auteur = '') {
     resultats = await google.rechercherParAuteur(requete, page);
   } else if (mode === 'isbn') {
     const chiffres = requete.replace(/[^0-9Xx]/g, '');
+
+    /*
+     * LE CATALOGUE VAULT BOOKS D'ABORD (tranche 33, suite). Un code-barres designe UNE edition : le service rend son editeur, sa date,
+     * sa pagination exacte et la couverture de CETTE edition — ce que Google ne fait que dans 65 % des cas. S'il ne la connait pas, est
+     * coupe, trop lent ou non configure, rien ne change : Google, Open Library puis la BnF prennent la suite, comme avant.
+     */
+    if (vaultapi.active()) {
+      try {
+        const fiche = await vaultapi.rechercherIsbn(chiffres);
+        if (fiche) return [fiche];
+      } catch { /* repli sur les trois sources publiques */ }
+    }
     /*
      * Repli Open Library sur DEUX cas, pas un seul :
      *  - Google ne connait pas l'ISBN (zero resultat) ;
@@ -1243,10 +1255,11 @@ async function notorieteDe(requete) {
  */
 export async function editionsDuCatalogue(clesEditions) {
   if (!vaultapi.active()) return null;
-  const cle = (clesEditions || []).find((k) => /^vb:\d+$/.test(k));
+  // `vb:<livre>` (vu par la recherche) ou `vb:<livre>:<isbn13>` (scanne) : dans les deux cas, l'identifiant du livre est le premier nombre.
+  const cle = (clesEditions || []).find((k) => /^vb:\d+(:|$)/.test(k));
   if (!cle) return null;
   try {
-    const liste = await vaultapi.editionsDuLivre(Number(cle.slice(3)));
+    const liste = await vaultapi.editionsDuLivre(Number(cle.split(':')[1]));
     return liste && liste.length ? liste : null;
   } catch {
     return null;

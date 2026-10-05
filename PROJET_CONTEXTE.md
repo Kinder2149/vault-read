@@ -2643,19 +2643,24 @@ principale Hardcover, BnF pour les éditions françaises). Sa conception, ses me
 - **Éditions proposées** — `api.getEditionsProposees` interroge le catalogue (`/v1/books/:id`, Hardcover + BnF réunis, une édition par ISBN, couverture
   par édition) quand l'une des éditions du livre porte une clé `vb:<id>` ; sinon, ou à la moindre défaillance, la BnF directe comme avant. Clé d'édition
   proposée : `vbe:<isbn13>`.
+- **Scan d'ISBN et recherche par ISBN** — `books.interroger`, branche ISBN : le catalogue d'abord (`/v1/isbn/:isbn`), puis Google, Open Library et la BnF comme
+  avant. Le service rend l'édition qui porte le code-barres : éditeur, date, **pagination exacte** (celle de la progression, §5.4), langue, couverture DE
+  CETTE ÉDITION, livre et saga ; Hardcover d'abord, la BnF en repli pour ce qu'il ignore (ISBN récents en 979), ISBN-10 accepté. **Aucun filtre de langue** :
+  un code-barres désigne une édition précise, souvent en version originale. Clé d'édition `vb:<livre>:<isbn13>` — elle porte le livre, ce qui permet de proposer
+  ensuite ses autres éditions — ou `vbe:<isbn13>` quand le service ne connaît pas le livre. Un ISBN inconnu du service, ou toute défaillance : sources publiques.
 - **Livre déjà suivi, par ISBN** — `listerClesEditions` rend, en plus des clés d'édition, une clé de marquage `isbn:<isbn13>` par édition qui en porte un
   (jamais écrite en base) ; les résultats du catalogue portent la même. Un livre ajouté via Google est donc marqué « suivi » sur le même livre rendu par le catalogue.
 - **Configuration** — `VITE_VAULT_API_URL` et `VITE_VAULT_API_KEY` dans `client/.env` (modèle dans `.env.example`). La clé d'application n'est PAS un
   secret : un APK ne garde rien de secret, elle ne sert qu'à limiter l'abus du service.
 
-**Vérifié.** 344 vérifications automatiques passent (311 + 33 : famille 13 — saga en bloc, tomes dans l'ordre, repli sur chaque défaillance, modes non
+**Vérifié.** 358 vérifications automatiques passent (311 + 47 : famille 15 — scan d'ISBN —, famille 13 — saga en bloc, tomes dans l'ordre, repli sur chaque défaillance, modes non
 concernés, interrupteur, langue — et famille 14 — éditions proposées et « déjà suivi » de bout en bout, avec la vraie base). Contrôle sur le VRAI service (`npm run controle-catalogue`, à lancer à la main) : les 12 tomes des Chevaliers
 d'Émeraude en français avec éditeur et ISBN, les 3 du Seigneur des anneaux, les 5 du Trône de fer, Dune (6), Harry Potter (7), Hunger Games (5),
 Discworld (37) ; 55 à 280 ms à chaud, 1 à 5 s la première fois.
 
 **Pas fait, volontairement (suites possibles).**
 
-- **Mode ISBN et mode auteur** : le service n'a pas encore ces routes ; ils passent par les sources publiques.
+- **Mode auteur** : le service n'a pas encore cette route ; il passe par les sources publiques.
 - **Un livre ajouté par une autre source** (`gb:…`, `ol:…`) garde ses éditions proposées par la BnF directe : le catalogue n'est consulté que pour un livre qui en vient.
 - **Résumé** : le service n'en rend pas ; `completer` le prend toujours chez Open Library.
 - **Hors ligne** : l'archive de 7 jours ne retient que les résultats des sources publiques ; le catalogue a son propre cache côté serveur.

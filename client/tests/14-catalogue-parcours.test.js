@@ -166,3 +166,14 @@ describe('Un livre deja suivi est reconnu, quelle que soit la source qui l-a fai
     expect((await api.getClesEditions()).some((c) => c.startsWith('isbn:'))).toBe(false);
   });
 });
+
+describe('Un livre scanne, puis ses autres editions', () => {
+  it('ajoute par le scan (cle vb:<livre>:<isbn>), il se voit proposer les autres editions du CATALOGUE', async () => {
+    reseau(catalogue);
+    const id = await api.ajouterOeuvre(resultat({ cleSource: 'vb:11:9782890746626' }));
+    const proposees = await api.getEditionsProposees(id);
+    expect(proposees.map((p) => p.isbn13)).toEqual(['9782749962771', '9782749906256', '9782298016727']);   // pas la Mortagne, deja possedee
+    expect(appels.some((u) => u.includes('catalogue.test/v1/books/11'))).toBe(true);
+    expect(appels.some((u) => u.includes('catalogue.bnf.fr'))).toBe(false);
+  });
+});

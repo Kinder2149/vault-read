@@ -202,6 +202,49 @@ export async function editionsDuLivre(livreId) {
 }
 
 // ---------------------------------------------------------------------------
+// Scan d'un ISBN
+// ---------------------------------------------------------------------------
+
+/**
+ * L'edition qui porte cet ISBN, pour le scan de code-barres et la recherche par ISBN. Le service interroge Hardcover (editeur, date,
+ * PAGES, langue, couverture de l'edition, livre et saga) puis la BnF pour ce qu'il ignore. AUCUN filtre de langue : un ISBN designe une
+ * edition precise, souvent en version originale, et la faire disparaitre parce qu'elle n'est pas dans la langue du catalogue serait
+ * mentir (meme regle que la source Google, §4.3).
+ *
+ * La cle d'edition porte l'identifiant du LIVRE quand le service le connait (`vb:<livre>:<isbn13>`) : c'est ce qui permet ensuite de
+ * proposer les autres editions de ce livre. Elle ne peut pas etre `vb:<livre>` seul — c'est celle du livre vu par la recherche —, car
+ * deux editions du meme livre, scannees l'une apres l'autre, porteraient alors la meme cle.
+ *
+ * @param {string} isbn chiffres seuls (10 ou 13)
+ * @returns {Promise<ResultatRecherche|null>} null si le service ne connait pas cet ISBN : l'appelant essaie alors les sources publiques
+ */
+export async function rechercherIsbn(isbn) {
+  const donnees = await apiGet(`/v1/isbn/${encodeURIComponent(isbn)}`);
+  if (!donnees || !donnees.isbn13) return null;
+  const date = donnees.date || null;
+  return {
+    cleSource: donnees.livre ? `vb:${donnees.livre.id}:${donnees.isbn13}` : `vbe:${donnees.isbn13}`,
+    source: 'vaultapi',
+    titre: donnees.titre,
+    sousTitre: null,
+    auteurs: donnees.auteurs || [],
+    annee: anneeDe(date),
+    datePublication: date,
+    couvertureUrl: https(donnees.couverture && donnees.couverture.url),
+    resume: null,
+    categories: [],
+    langue: donnees.langue || null,
+    isbn13: donnees.isbn13,
+    isbn10: null,
+    // La pagination exacte de CETTE edition : c'est elle qui sert a la progression (§5.4).
+    nbPages: donnees.nbPages || null,
+    editeur: donnees.editeur || null,
+    couvertureApproximative: Boolean(donnees.couverture && donnees.couverture.approximative),
+    ...(donnees.serie ? { serie: { id: donnees.serie.id, nom: donnees.serie.nom, position: donnees.serie.position, total: donnees.serie.total } } : {}),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Recherche
 // ---------------------------------------------------------------------------
 

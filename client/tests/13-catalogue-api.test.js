@@ -5,7 +5,7 @@
  * JAMAIS rendre l'application moins fiable qu'elle ne l'etait. D'ou trois promesses :
  *   1. ce qu'il rend est range comme il le dit (saga en bloc, tomes dans l'ordre, son classement fait foi) ;
  *   2. en cas de defaillance — coupe, lent, cle refusee, vide, non configure — l'ancien chemin prend le relais ;
- *   3. il ne s'applique qu'a ce qu'il sait faire (recherche par titre, premiere page, sans auteur precise).
+ *   3. il ne s'applique qu'a ce qu'il sait faire (recherche par titre, premiere page, sans auteur precise ; le mode ISBN a sa famille : 15).
  *
  * AUCUN appel reseau reel : le service est simule, comme le sont Google, Open Library et la BnF dans les autres familles.
  * Pour verifier le VRAI service : `node scripts/...` n'existe pas ici — voir `npm run smoke` dans le projet vault-books-api.
@@ -224,7 +224,6 @@ describe('books.rechercher : le catalogue d-abord, le repli ensuite', () => {
   // Une verification par cas : chacune passe par l'ancien chemin, dont les reessais prennent ~2,5 s.
   const casIgnores = [
     ['recherche par auteur', (b) => b.rechercher('tolkien', 'auteur')],
-    ['recherche par ISBN', (b) => b.rechercher('9782070612758', 'isbn')],
     ['page suivante', (b) => b.rechercher('dune', 'titre', 1)],
     ['auteur precise', (b) => b.rechercher('dune', 'titre', 0, 'herbert')],
   ];

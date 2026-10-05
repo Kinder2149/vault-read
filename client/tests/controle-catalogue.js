@@ -55,5 +55,16 @@ if (premiere) {
   (editions || []).slice(0, 6).forEach((e) => console.log(gris(`   ${String(e.datePublication || '----').slice(0, 4)} | ${String(e.editeur || '?').padEnd(24).slice(0, 24)} | ${e.isbn13} | couv ${e.couvertureUrl ? 'oui' : 'NON'}${e.couvertureApproximative ? ' (approx.)' : ''}`)));
 }
 
+// Le scan d'un ISBN : chaque code-barres doit rendre UNE fiche du catalogue (ou, pour un inconnu, retomber sur les sources publiques).
+const ISBNS = [['9782749910147', 'FR, Hardcover'], ['9791022400640', 'FR recent (979), repli BnF du service'], ['9780553103540', 'EN, version originale'], ['2226052577', 'ISBN-10 ancien']];
+console.log('\nScan d\'ISBN :');
+for (const [isbn, nom] of ISBNS) {
+  const t0 = Date.now();
+  const r = await rechercher(isbn, 'isbn');
+  const f = r.resultats[0];
+  const viaCatalogue = f && f.source === 'vaultapi';
+  if (!viaCatalogue) echecs += 1;
+  console.log(`   ${viaCatalogue ? vert('CATALOGUE') : rouge('REPLI    ')} ${isbn} (${nom}) — ${f ? `« ${f.titre} » | ${f.editeur || '?'} | ${f.nbPages ? `${f.nbPages} p.` : 'pages ?'} | ${f.langue || '?'} | couv ${f.couvertureUrl ? 'oui' : 'NON'}${f.serie ? ` | tome ${f.serie.position}` : ''}` : 'aucun resultat'} — ${Date.now() - t0} ms`);
+}
 console.log(echecs ? rouge(`\n${echecs} recherche(s) sont passees par le repli.`) : vert('\nToutes les recherches viennent du catalogue.'));
 process.exit(echecs ? 1 : 0);
