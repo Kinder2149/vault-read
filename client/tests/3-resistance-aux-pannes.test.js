@@ -643,8 +643,9 @@ describe('Le cache de recherche ne fige plus le classement', () => {
     const books = await import('../src/books.js');
     await books.rechercher('archive-brute', 'titre');
     // L'archivage est volontairement NON attendu (il ne doit pas retarder
-    // l'affichage) : on laisse passer un tour de boucle avant de le lire.
-    await new Promise((r) => setTimeout(r, 0));
+    // l'affichage) : on attend qu'il ait eu lieu avant de le lire. Un seul tour de boucle ne suffit pas quand la machine est chargee
+    // (l'ecriture passe par un import dynamique) : constate en suite complete, le 2026-10-05.
+    await vi.waitFor(() => expect(faux.get('recherche:titre:archive-brute')).toBeTruthy());
 
     const entree = faux.get('recherche:titre:archive-brute');
     expect(entree).toBeTruthy();

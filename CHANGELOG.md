@@ -57,3 +57,6 @@ Pas encore publié : `versionCode` 1, `versionName` « 1.0 ».
 ## À venir
 
 Voir `PROJET_CONTEXTE.md` §11 (publication) — rien n'est cadré au-delà.
+
+- 2026-10-05 : le test « ARCHIVE DU BRUT » (famille 3) attend désormais l'archive au lieu d'un seul tour de boucle : il échouait par moments en suite complète (écriture non attendue, import dynamique). 384 vérifications.
+
