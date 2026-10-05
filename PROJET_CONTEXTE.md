@@ -2696,3 +2696,7 @@ en retenir que quatre :
    d'écriture contre 12 s d'attente réseau. L'identité se promeut après coup.
 4. **Google Books rend un `503` une requête sur deux.** Le « aucun retry »
    hérité du projet séries ne tenait pas contre cette source.
+
+**Suite de la tranche 33 : auteur et résumés.** En mode Auteur (première page), le catalogue rend la bibliographie (sagas dépliées, 8 tomes max par saga, livres isolés) avec 
+bSource: 0; auteur inconnu ou panne : repli Google. /v1/isbn fournit le résumé (souvent anglais, non traduit). 366 vérifications (famille 16).
+

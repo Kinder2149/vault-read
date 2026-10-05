@@ -231,7 +231,9 @@ export async function rechercherIsbn(isbn) {
     annee: anneeDe(date),
     datePublication: date,
     couvertureUrl: https(donnees.couverture && donnees.couverture.url),
-    resume: null,
+    // Le resume du service (74 % des livres, 10 % seulement en francais : voir `resumeLangue`). Un resume anglais vaut mieux qu'un vide, et on ne
+    // traduit pas (§9) : l'application le garde tel quel, `completer` ne va chercher chez Open Library que s'il manque.
+    resume: donnees.resume || null,
     categories: [],
     langue: donnees.langue || null,
     isbn13: donnees.isbn13,
@@ -257,19 +259,36 @@ export async function rechercherTitre(texte) {
   const lang = langue();
   const donnees = await apiGet(`/v1/search?q=${encodeURIComponent(texte)}&lang=${lang}`);
   const cartes = (donnees && donnees.resultats) || [];
+  return { resultats: await deplier(cartes, lang), langueNonDisponible: Boolean(donnees && donnees.langueNonDisponible) };
+}
 
-  // Les sagas a deplier, dans l'ordre de la recherche. Une saga qui ne se deplie pas reste une carte unique.
+/**
+ * Les sagas a deplier en tomes, dans l'ordre de la recherche (au plus MAX_SAGAS_DEPLIEES). Une saga qui ne se deplie pas — au-dela de la limite,
+ * ou si ses tomes ne se chargent pas — reste une carte unique. `maxTomes` borne le nombre de tomes gardes par saga (recherche par auteur :
+ * une bibliographie ne doit pas devenir 100 lignes pour un seul manga).
+ */
+async function deplier(cartes, lang, { maxTomes = Infinity } = {}) {
   const adeplier = cartes.filter((c) => c.type === 'serie').slice(0, MAX_SAGAS_DEPLIEES);
   const series = new Map(await Promise.all(adeplier.map(async (c) => {
     try { return [c.id, await apiGet(`/v1/series/${c.id}?lang=${lang}`)]; } catch { return [c.id, null]; }
   })));
 
-  const resultats = cartes.flatMap((carte) => {
+  return cartes.flatMap((carte) => {
     if (carte.type !== 'serie') return [resultatDeCarte(carte, lang)];
     const serie = series.get(carte.id);
-    const tomes = serie ? resultatsDeSerie(carte, serie, lang) : [];
+    const tomes = serie ? resultatsDeSerie(carte, serie, lang).slice(0, maxTomes) : [];
     return tomes.length ? tomes : [resultatDeCarte(carte, lang)];
   });
+}
 
-  return { resultats, langueNonDisponible: Boolean(donnees && donnees.langueNonDisponible) };
+/**
+ * Recherche PAR AUTEUR : les sagas et les livres de l'auteur, du plus lu au moins lu. Rend `auteur: null` et aucun resultat si le service ne
+ * connait pas cet auteur : l'appelant essaie alors Google.
+ * @returns {Promise<{resultats: ResultatRecherche[], auteur: {id:number, nom:string, livres:number|null}|null}>}
+ */
+export async function rechercherAuteur(texte) {
+  const lang = langue();
+  const donnees = await apiGet(`/v1/search?q=${encodeURIComponent(texte)}&lang=${lang}&mode=auteur`);
+  if (!donnees || !donnees.auteur || !Array.isArray(donnees.resultats) || !donnees.resultats.length) return { resultats: [], auteur: null };
+  return { resultats: await deplier(donnees.resultats, lang, { maxTomes: 8 }), auteur: donnees.auteur };
 }

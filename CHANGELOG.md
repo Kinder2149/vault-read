@@ -4,7 +4,7 @@ Journal court : une ligne par étape. Le détail, les mesures et les raisons son
 dans `PROJET_CONTEXTE.md` (§8 pour les tranches 0 à 8, §12 pour les suivantes).
 Ce fichier ne contient aucune décision : il ne fait que renvoyer.
 
-Dernier état connu : **358 vérifications automatiques passent** (2026-10-05, branche `feature/catalogue-api`, pas encore fusionnée dans `main`).
+Dernier état connu : **366 vérifications automatiques passent** (2026-10-05, branche `feature/catalogue-api`, pas encore fusionnée dans `main`).
 Pas encore publié : `versionCode` 1, `versionName` « 1.0 ».
 
 ## Tranches de construction (§8)
@@ -52,7 +52,7 @@ Pas encore publié : `versionCode` 1, `versionName` « 1.0 ».
   et la BnF pour la recherche par titre ; sagas en blocs, tomes dans l'ordre, langue
   au choix ; éditions proposées par le catalogue ; livre déjà suivi reconnu par l'ISBN ;
   scan d'ISBN par le catalogue (pages, éditeur, couverture de l'édition) ; repli sur les
-  sources publiques à la moindre défaillance. 358 vérifications.
+  sources publiques à la moindre défaillance. 366 vérifications (famille 16 : recherche par auteur et résumés par le catalogue).
 
 ## À venir
 

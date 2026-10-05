@@ -568,6 +568,21 @@ export async function rechercher(texte, mode, page = 0, auteur = '') {
   }
 
   /*
+   * LA RECHERCHE PAR AUTEUR AUSSI (tranche 33, suite) : la bibliographie de l'auteur, sagas et livres, du plus lu au moins lu. Meme regle que pour
+   * le titre : premiere page seulement, `nbSource` a 0 (le service rend tout d'un coup — sans cela l'ecran irait chercher une « page suivante »
+   * chez Google et y melerait des livres d'autres auteurs), et toute defaillance ou tout auteur inconnu laisse la main a Google.
+   */
+  if (mode === 'auteur' && requete && page === 0 && vaultapi.active()) {
+    try {
+      const { resultats } = await vaultapi.rechercherAuteur(requete);
+      if (resultats.length) {
+        void noterDansHistorique(requete, mode);
+        return { resultats, ancien: false, pose: Date.now(), nbSource: 0 };
+      }
+    } catch { /* repli sur Google */ }
+  }
+
+  /*
    * LA NOTORIETE PART D'ICI, ET NON PLUS DE `rechercherBrut` (M2).
    *
    * Elle doit toujours se recouvrir avec l'appel Google — d'ou son lancement

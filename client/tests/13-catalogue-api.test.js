@@ -223,7 +223,7 @@ describe('books.rechercher : le catalogue d-abord, le repli ensuite', () => {
 
   // Une verification par cas : chacune passe par l'ancien chemin, dont les reessais prennent ~2,5 s.
   const casIgnores = [
-    ['recherche par auteur', (b) => b.rechercher('tolkien', 'auteur')],
+    ['page suivante en mode auteur', (b) => b.rechercher('tolkien', 'auteur', 1)],
     ['page suivante', (b) => b.rechercher('dune', 'titre', 1)],
     ['auteur precise', (b) => b.rechercher('dune', 'titre', 0, 'herbert')],
   ];

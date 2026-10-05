@@ -32,6 +32,7 @@
  *           la saga a laquelle appartient ce livre, et sa place : fait foi sur la lecture du numero dans le titre
  * @property {number}   [scoreApi]       classement donne par le service : fait foi sur `scorePertinence`
  * @property {boolean}  [couvertureApproximative]  la couverture vient du livre canonique, pas de cette edition
+ * @property {string|null} resume  (pour 'vaultapi') le resume du service, dans la langue qu'il a — souvent l'anglais ; rempli seulement par la recherche par ISBN
  */
 
 /**
