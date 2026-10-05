@@ -1,0 +1,36 @@
+{
+  "langue": "fr",
+  "requete": "chevaliers d'émeraude",
+  "resultats": [
+    {
+      "id": 25608,
+      "type": "serie",
+      "annee": 2004,
+      "score": 132.8,
+      "titre": "Les Chevaliers d'Émeraude",
+      "tomes": 12,
+      "auteurs": [
+        "Anne Robillard"
+      ],
+      "lecteurs": 36,
+      "couverture": "https://assets.hardcover.app/edition/31284543/b4a57ac3-fd9c-4735-9e21-4f254ae568b5.jpg",
+      "langueDisponible": true
+    },
+    {
+      "id": 276691,
+      "type": "serie",
+      "annee": 2013,
+      "score": 60.3,
+      "titre": "Les Chevaliers d'Émeraude (Graphic Novel)",
+      "tomes": 7,
+      "auteurs": [
+        "Tiburce Oger",
+        "Anne Robillard"
+      ],
+      "lecteurs": 22,
+      "couverture": "https://assets.hardcover.app/edition/32970392/da624c97afd564a9b3f06392df6460c4dcebd66a.jpeg",
+      "langueDisponible": true
+    }
+  ],
+  "langueNonDisponible": false
+}

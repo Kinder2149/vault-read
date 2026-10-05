@@ -1,0 +1,146 @@
+{
+  "mode": "auteur",
+  "auteur": {
+    "id": 327619,
+    "nom": "Anne Robillard",
+    "livres": 134
+  },
+  "langue": "fr",
+  "requete": "anne robillard",
+  "resultats": [
+    {
+      "id": 29464,
+      "type": "serie",
+      "annee": 2013,
+      "score": 34.2,
+      "titre": "Les ailes d'Alexanne",
+      "tomes": 11,
+      "auteurs": [
+        "Anne Robillard"
+      ],
+      "lecteurs": 8,
+      "couverture": "https://assets.hardcover.app/edition/32971832/bff8437de6f1a7aa60e3f81bbc09a42f6f7c6fed.jpeg",
+      "langueDisponible": true
+    },
+    {
+      "id": 25608,
+      "type": "serie",
+      "annee": 2005,
+      "score": 32.8,
+      "titre": "Les Chevaliers d'Émeraude",
+      "tomes": 12,
+      "auteurs": [
+        "Anne Robillard"
+      ],
+      "lecteurs": 36,
+      "couverture": "https://assets.hardcover.app/edition/31284543/b4a57ac3-fd9c-4735-9e21-4f254ae568b5.jpg",
+      "langueDisponible": true
+    },
+    {
+      "id": 54313,
+      "type": "serie",
+      "annee": 2010,
+      "score": 26.5,
+      "titre": "Les Héritiers d'Enkidiev",
+      "tomes": 12,
+      "auteurs": [
+        "Anne Robillard"
+      ],
+      "lecteurs": 10,
+      "couverture": "https://assets.hardcover.app/edition/31250129/cb398c68-1b8c-42a6-b6af-b22e61a26452.jpg",
+      "langueDisponible": true
+    },
+    {
+      "id": 89068,
+      "type": "serie",
+      "annee": 2007,
+      "score": 24.1,
+      "titre": "A.N.G.E.",
+      "tomes": 10,
+      "auteurs": [
+        "Anne Robillard"
+      ],
+      "lecteurs": 6,
+      "couverture": "https://assets.hardcover.app/edition/32971479/09d19eb2ad604a21a913d37a0aee0061bbd13b7d.jpeg",
+      "langueDisponible": true
+    },
+    {
+      "id": 276997,
+      "type": "serie",
+      "annee": 2019,
+      "score": 19.7,
+      "titre": "La Malédiction des Dragensblöt",
+      "tomes": 7,
+      "auteurs": [
+        "Anne Robillard"
+      ],
+      "lecteurs": 2,
+      "couverture": "https://assets.hardcover.app/edition/32974131/8ee57d7f-2946-4fd6-8c13-266f28aae062.jpg",
+      "langueDisponible": true
+    },
+    {
+      "id": 109841,
+      "type": "serie",
+      "annee": 2016,
+      "score": 19.7,
+      "titre": "Les Chevaliers d'Antarès",
+      "tomes": 12,
+      "auteurs": [
+        "Anne Robillard"
+      ],
+      "lecteurs": 2,
+      "couverture": "https://assets.hardcover.app/edition/31834746/cc7d60cc547574c96d2490d65a1c5c0a98728c1f.jpeg",
+      "langueDisponible": true
+    },
+    {
+      "id": 277000,
+      "type": "serie",
+      "annee": 2023,
+      "score": 19.7,
+      "titre": "Maynard Bennett, Enquêteur de l'étrange",
+      "tomes": 8,
+      "auteurs": [
+        "Anne Robillard"
+      ],
+      "lecteurs": 2,
+      "couverture": "https://assets.hardcover.app/edition/32974152/b5f7bc58d2528b2e7602f2a479a9fd7eeea99893.jpeg",
+      "langueDisponible": true
+    },
+    {
+      "id": 276774,
+      "type": "serie",
+      "annee": 2012,
+      "score": 17.6,
+      "titre": "Les Cordes de Cristal",
+      "tomes": 10,
+      "auteurs": [
+        "Anne Robillard"
+      ],
+      "lecteurs": 1,
+      "couverture": "https://assets.hardcover.app/external_data/3091432/49d3627070f091bd1e8996997227e5e6fcd083c2.jpeg",
+      "langueDisponible": true
+    },
+    {
+      "id": 276691,
+      "type": "serie",
+      "annee": 2013,
+      "score": -9.7,
+      "titre": "Les Chevaliers d'Émeraude (Graphic Novel)",
+      "tomes": 7,
+      "auteurs": [
+        "Anne Robillard"
+      ],
+      "lecteurs": 22,
+      "couverture": "https://assets.hardcover.app/edition/30952438/c7825957-5285-4a87-9909-4f52e03c1398.jpg",
+      "langueDisponible": true
+    }
+  ],
+  "autresAuteurs": [
+    {
+      "id": 1465950,
+      "nom": "Martial Grise & Anne Robillard",
+      "livres": null
+    }
+  ],
+  "langueNonDisponible": false
+}

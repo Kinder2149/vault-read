@@ -1,0 +1,263 @@
+{
+  "id": 25608,
+  "nom": "Les Chevaliers d'Émeraude",
+  "tomes": [
+    {
+      "titre": "Le Feu dans le ciel",
+      "edition": {
+        "id": 30518110,
+        "date": "2002-01-01",
+        "format": "Paperback",
+        "isbn13": "9782890746626",
+        "editeur": "Éditions de Mortagne"
+      },
+      "livreId": 558271,
+      "parties": [],
+      "lecteurs": 36,
+      "position": 1,
+      "aParaitre": false,
+      "couverture": "https://assets.hardcover.app/edition/30518110/5770b2f3f09fe21246e3192d73631005315d5f8f.jpeg",
+      "disponible": true,
+      "viaParties": false,
+      "couvertureSource": "hardcover",
+      "couvertureApproximative": false,
+      "couvertureBasseDefinition": false
+    },
+    {
+      "titre": "Les dragons de l'Empereur Noir",
+      "edition": {
+        "id": 30952443,
+        "date": "2003-01-01",
+        "format": "Paperback",
+        "isbn13": "9782890746725",
+        "editeur": "Éditions de Mortagne"
+      },
+      "livreId": 927288,
+      "parties": [],
+      "lecteurs": 32,
+      "position": 2,
+      "aParaitre": false,
+      "couverture": "https://covers.openlibrary.org/b/isbn/9782890746725-L.jpg?default=false",
+      "disponible": true,
+      "viaParties": false,
+      "couvertureSource": "openlibrary",
+      "couvertureApproximative": false,
+      "couvertureBasseDefinition": false
+    },
+    {
+      "titre": "Piège au royaume des ombres",
+      "edition": {
+        "id": 32328288,
+        "date": "2007-10-11",
+        "format": "Paperback",
+        "isbn13": "9782749907475",
+        "editeur": "Michel Lafon"
+      },
+      "livreId": 927284,
+      "parties": [],
+      "lecteurs": 10,
+      "position": 3,
+      "aParaitre": false,
+      "couverture": "https://assets.hardcover.app/external_data/1473244/3a5de049e2217c330e86b97c7cd43942d106df42.jpeg",
+      "disponible": true,
+      "viaParties": false,
+      "couvertureSource": "hardcover",
+      "couvertureApproximative": false,
+      "couvertureBasseDefinition": false
+    },
+    {
+      "titre": "La princesse rebelle",
+      "edition": {
+        "id": 30952437,
+        "date": "2004-04-05",
+        "format": "Paperback",
+        "isbn13": "9782890746763",
+        "editeur": "Éditions de Mortagne"
+      },
+      "livreId": 927283,
+      "parties": [],
+      "lecteurs": 29,
+      "position": 4,
+      "aParaitre": false,
+      "couverture": "https://assets.hardcover.app/edition/30952437/1c1454b833eeb491041488d0fa380e7d4fcff6a1.jpeg",
+      "disponible": true,
+      "viaParties": false,
+      "couvertureSource": "hardcover",
+      "couvertureApproximative": false,
+      "couvertureBasseDefinition": false
+    },
+    {
+      "titre": "L'île des Lézards",
+      "edition": {
+        "id": 30952435,
+        "date": "2004-10-18",
+        "format": "Paperback",
+        "isbn13": "9782890746787",
+        "editeur": "Boucherville, Québec : Éditions de Mortagne"
+      },
+      "livreId": 927281,
+      "parties": [],
+      "lecteurs": 31,
+      "position": 5,
+      "aParaitre": false,
+      "couverture": "https://assets.hardcover.app/edition/30952435/d37b9ae7c44ad87168ca72fb0d65e2febf00dd01.jpeg",
+      "disponible": true,
+      "viaParties": false,
+      "couvertureSource": "hardcover",
+      "couvertureApproximative": false,
+      "couvertureBasseDefinition": false
+    },
+    {
+      "titre": "Le journal d'Onyx",
+      "edition": {
+        "id": 30952436,
+        "date": "2005-01-01",
+        "format": "Paperback",
+        "isbn13": "9782894307182",
+        "editeur": "Québec loisirs"
+      },
+      "livreId": 927282,
+      "parties": [],
+      "lecteurs": 27,
+      "position": 6,
+      "aParaitre": false,
+      "couverture": "https://assets.hardcover.app/edition/30952436/c0a7ccf15407309f86a65c4c7371a79535cd3b9f.jpeg",
+      "disponible": true,
+      "viaParties": false,
+      "couvertureSource": "hardcover",
+      "couvertureApproximative": false,
+      "couvertureBasseDefinition": false
+    },
+    {
+      "titre": "L'enlèvement",
+      "edition": {
+        "id": 30952433,
+        "date": "2005-01-01",
+        "format": "Paperback",
+        "isbn13": "9782890746824",
+        "editeur": "Éditions de Mortagne"
+      },
+      "livreId": 927279,
+      "parties": [],
+      "lecteurs": 25,
+      "position": 7,
+      "aParaitre": false,
+      "couverture": "https://assets.hardcover.app/edition/30952433/b4f264454088bda8e467523e56f3faaeab3d5ae1.jpeg",
+      "disponible": true,
+      "viaParties": false,
+      "couvertureSource": "hardcover",
+      "couvertureApproximative": false,
+      "couvertureBasseDefinition": false
+    },
+    {
+      "titre": "Les dieux déchus",
+      "edition": {
+        "id": 31123998,
+        "date": "2006-01-01",
+        "format": "Paperback",
+        "isbn13": "9782890746848",
+        "editeur": "Éditions de Mortagne"
+      },
+      "livreId": 1099977,
+      "parties": [],
+      "lecteurs": 22,
+      "position": 8,
+      "aParaitre": false,
+      "couverture": "https://assets.hardcover.app/edition/31123998/27c8bb53ba43c1eeada79dc8939bea54d720efde.jpeg",
+      "disponible": true,
+      "viaParties": false,
+      "couvertureSource": "hardcover",
+      "couvertureApproximative": false,
+      "couvertureBasseDefinition": false
+    },
+    {
+      "titre": "L'héritage de Danalieth",
+      "edition": {
+        "id": 31124005,
+        "date": "2007-01-01",
+        "format": "Paperback",
+        "isbn13": "9782890746862",
+        "editeur": "Éditions de Mortagne"
+      },
+      "livreId": 1099984,
+      "parties": [],
+      "lecteurs": 23,
+      "position": 9,
+      "aParaitre": false,
+      "couverture": "https://assets.hardcover.app/edition/31124005/fd1685cbf6ca87f7b884595cca00f24fafe9c93a.jpeg",
+      "disponible": true,
+      "viaParties": false,
+      "couvertureSource": "hardcover",
+      "couvertureApproximative": false,
+      "couvertureBasseDefinition": false
+    },
+    {
+      "titre": "Représailles",
+      "edition": {
+        "id": 31123983,
+        "date": "2010-01-14",
+        "format": "Paperback",
+        "isbn13": "9782749911540",
+        "editeur": "Michel Lafon"
+      },
+      "livreId": 1099962,
+      "parties": [],
+      "lecteurs": 23,
+      "position": 10,
+      "aParaitre": false,
+      "couverture": "https://assets.hardcover.app/edition/31123983/43a76648-3709-40b8-a144-c6381bc03a21.jpg",
+      "disponible": true,
+      "viaParties": false,
+      "couvertureSource": "hardcover",
+      "couvertureApproximative": false,
+      "couvertureBasseDefinition": false
+    },
+    {
+      "titre": "La justice céleste",
+      "edition": {
+        "id": 31123973,
+        "date": "2007-01-01",
+        "format": "Paperback",
+        "isbn13": "9782890746909",
+        "editeur": "Éditions de Mortagne"
+      },
+      "livreId": 1099952,
+      "parties": [],
+      "lecteurs": 21,
+      "position": 11,
+      "aParaitre": false,
+      "couverture": "https://assets.hardcover.app/external_data/283120/e958c0ff177505ee2f8e3f36303a12e5a1719327.jpeg",
+      "disponible": true,
+      "viaParties": false,
+      "couvertureSource": "hardcover",
+      "couvertureApproximative": false,
+      "couvertureBasseDefinition": false
+    },
+    {
+      "titre": "Irianeth",
+      "edition": {
+        "id": 31123982,
+        "date": "2008-01-01",
+        "format": "Paperback",
+        "isbn13": "9782890746923",
+        "editeur": "Éditions de Mortagne"
+      },
+      "livreId": 1099961,
+      "parties": [],
+      "lecteurs": 20,
+      "position": 12,
+      "aParaitre": false,
+      "couverture": "https://assets.hardcover.app/edition/31123982/48eac1188dc48c0d8ed4232aef78da9037204597.jpeg",
+      "disponible": true,
+      "viaParties": false,
+      "couvertureSource": "hardcover",
+      "couvertureApproximative": false,
+      "couvertureBasseDefinition": false
+    }
+  ],
+  "langue": "fr",
+  "aParaitre": 0,
+  "horsSerie": [],
+  "disponibles": 12,
+  "totalPrincipal": 12
+}

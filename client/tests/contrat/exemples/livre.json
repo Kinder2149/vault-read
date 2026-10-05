@@ -1,0 +1,105 @@
+{
+  "id": 1099977,
+  "serie": {
+    "id": 25608,
+    "nom": "Les Chevaliers d'Émeraude",
+    "position": 8
+  },
+  "titre": "Les dieux déchus",
+  "langue": "fr",
+  "resume": "Au moment d'attribuer les nouveaux Ecuyers à leurs maîtres, Wellan s'aperçoit qu'il n'y a pas suffisamment de Chevaliers pour chaque apprenti. L'armée sera donc en sous-effectif pour contrer les futures invasions de l'Empereur Noir. Pour y remédier, Jenifael, Lassa et Lia ont recours à la magie des Anciens, et font appel à un vieux sortilège oublié. À peine remis du bouleversement causé par ce charme, les Chevaliers doivent affronter un mystérieux ennemi en provenance du ciel. Sauront-ils se défendre contre les dieux déchus ? De son côté, Onyx prétend vouloir revoir son village natal pour y conduire la famille de Sutton qui désire s'y installer. En réalité, le renégat veut mettre la main sur une arme divine cachée dans la partie la plus méridionale du royaume, et capable de renverser l'ordre du monde. Mais sera-t-il assez fort pour la maîtriser ? Pendant ce temps-là, guidées par Asbeth, les troupes de l'Empereur Noir réussissent à se rendre jusqu'au Château d'Emeraude. Vaincre sa peur",
+  "auteurs": [
+    "Anne Robillard"
+  ],
+  "editions": [
+    {
+      "date": "2022",
+      "titre": "Les dieux déchus (Éd. collector) Anne Robillard",
+      "format": null,
+      "isbn13": "9791022405850",
+      "editeur": "Michel Lafon poche",
+      "sources": [
+        "bnf"
+      ],
+      "collection": null,
+      "couverture": {
+        "url": "https://assets.hardcover.app/external_data/1138913/7ae7ee5829957c6ee788ca411091465de14336b8.jpeg",
+        "source": "hardcover-livre",
+        "approximative": true,
+        "basseDefinition": false
+      }
+    },
+    {
+      "date": "2014",
+      "titre": "Les dieux déchus",
+      "format": null,
+      "isbn13": "9791022400541",
+      "editeur": "M. Lafon poche",
+      "sources": [
+        "bnf"
+      ],
+      "collection": null,
+      "couverture": {
+        "url": "https://assets.hardcover.app/external_data/1138913/7ae7ee5829957c6ee788ca411091465de14336b8.jpeg",
+        "source": "hardcover-livre",
+        "approximative": true,
+        "basseDefinition": false
+      }
+    },
+    {
+      "date": "2010",
+      "titre": "Les dieux déchus",
+      "format": null,
+      "isbn13": "9782298029017",
+      "editeur": "Éd. France loisirs",
+      "sources": [
+        "bnf"
+      ],
+      "collection": null,
+      "couverture": {
+        "url": "https://covers.openlibrary.org/b/isbn/9782298029017-L.jpg?default=false",
+        "source": "openlibrary",
+        "approximative": false,
+        "basseDefinition": false
+      }
+    },
+    {
+      "date": "2009-05-14",
+      "titre": "Les dieux déchus",
+      "format": "Paperback",
+      "isbn13": "9782749910147",
+      "editeur": "Michel Lafon",
+      "sources": [
+        "hardcover",
+        "bnf"
+      ],
+      "collection": null,
+      "couverture": {
+        "url": "https://assets.hardcover.app/external_data/1138913/7ae7ee5829957c6ee788ca411091465de14336b8.jpeg",
+        "source": "hardcover",
+        "approximative": false,
+        "basseDefinition": false
+      }
+    },
+    {
+      "date": "2006-01-01",
+      "titre": "Les dieux déchus",
+      "format": "Paperback",
+      "isbn13": "9782890746848",
+      "editeur": "Éditions de Mortagne",
+      "sources": [
+        "hardcover"
+      ],
+      "collection": null,
+      "couverture": {
+        "url": "https://assets.hardcover.app/edition/31123998/27c8bb53ba43c1eeada79dc8939bea54d720efde.jpeg",
+        "source": "hardcover",
+        "approximative": false,
+        "basseDefinition": false
+      }
+    }
+  ],
+  "sourceBnf": "ok",
+  "titreLangue": "Les dieux déchus",
+  "resumeLangue": "fr"
+}

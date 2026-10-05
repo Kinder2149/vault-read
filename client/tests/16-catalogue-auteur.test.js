@@ -24,8 +24,8 @@ vi.mock('@capacitor/core', () => ({ Capacitor: { getPlatform: () => 'web' } }));
 const ok = (corps) => new Response(JSON.stringify(corps), { status: 200 });
 
 const tomes = Array.from({ length: 12 }, (_, i) => ({
-  position: i + 1, disponible: true, aParaitre: false, titre: `Tome ${i + 1}`, isbn13: null, livre: { id: 5000 + i },
-  edition: { isbn13: `97827499100${String(i).padStart(2, '0')}`, titre: `Tome ${i + 1}`, editeur: 'Lafon', date: '2005', couverture: { url: null } },
+  position: i + 1, disponible: true, aParaitre: false, titre: `Tome ${i + 1}`, livreId: 5000 + i, couverture: null, parties: [],
+  edition: { id: 9000 + i, isbn13: `97827499100${String(i).padStart(2, '0')}`, editeur: 'Lafon', date: '2005-01-01', format: 'Paperback' },
 }));
 
 const reponseAuteur = {
@@ -45,7 +45,7 @@ function reseau(fn) {
   });
 }
 const catalogue = (url) => {
-  if (url.includes('/v1/series/')) return ok({ id: 25608, nom: "Les Chevaliers d'Émeraude", total: 12, tomes });
+  if (url.includes('/v1/series/')) return ok({ id: 25608, nom: "Les Chevaliers d'Émeraude", totalPrincipal: 12, tomes });
   if (url.includes('mode=auteur')) return ok(reponseAuteur);
   if (url.includes('googleapis.com')) return ok(googleAuteur);
   return new Response('{}', { status: 503 });

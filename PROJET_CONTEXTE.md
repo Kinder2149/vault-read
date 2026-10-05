@@ -2700,3 +2700,6 @@ en retenir que quatre :
 **Suite de la tranche 33 : auteur et résumés.** En mode Auteur (première page), le catalogue rend la bibliographie (sagas dépliées, 8 tomes max par saga, livres isolés) avec 
 bSource: 0; auteur inconnu ou panne : repli Google. /v1/isbn fournit le résumé (souvent anglais, non traduit). 366 vérifications (famille 16).
 
+
+**Phase 3 (essai et solidité).** Les recherches du catalogue (titre, auteur) sont archivées sous une clé qui porte la langue (b:<langue>:<mode>:<texte>) et ne servent que si le catalogue ET le chemin historique sont tombés (`ancien: true`, `nbSource: 0`). Famille 17 : les réponses réelles du service (copiées de vault-books-api/contrat/ par `npm run contrat -- --copier`) sont le contrat des deux dépôts. Famille 18 : hors ligne. 380 vérifications.
+

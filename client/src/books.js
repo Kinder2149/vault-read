@@ -557,12 +557,25 @@ export async function rechercher(texte, mode, page = 0, auteur = '') {
    * Toute defaillance — service coupe, trop lent, cle refusee, ou aucun resultat — laisse la main au chemin historique,
    * qui fait ce qu'il faisait hier. L'utilisateur ne voit jamais une erreur de plus.
    */
+  /*
+   * HORS LIGNE (tranche 33, phase 3) : ce que le catalogue rend est archive, sous une cle qui porte sa langue (« vb:fr:titre:dune »), a cote
+   * de l'archive historique. Elle ne sert QUE si tout est tombe — catalogue ET chemin historique — et rend alors la recherche deja faite,
+   * annoncee « ancienne » comme le fait l'archive de Google. Jamais lue tant qu'une source repond : le classement ne se fige pas.
+   */
+  let cleCatalogue = null;
+  const archiverCatalogue = (resultats) => {
+    const pose = Date.now();
+    if (cleCatalogue) void ecrireArchive(cleCatalogue, pose, resultats);
+    return { resultats, ancien: false, pose, nbSource: 0 };
+  };
+
   if (mode === 'titre' && requete && !auteur && page === 0 && vaultapi.active()) {
+    cleCatalogue = `vb:${vaultapi.langue()}:titre:${requete.toLowerCase()}`;
     try {
       const { resultats } = await vaultapi.rechercherTitre(requete);
       if (resultats.length) {
         void noterDansHistorique(requete, mode);
-        return { resultats, ancien: false, pose: Date.now(), nbSource: 0 };
+        return archiverCatalogue(resultats);
       }
     } catch { /* repli sur les trois sources publiques */ }
   }
@@ -573,11 +586,12 @@ export async function rechercher(texte, mode, page = 0, auteur = '') {
    * chez Google et y melerait des livres d'autres auteurs), et toute defaillance ou tout auteur inconnu laisse la main a Google.
    */
   if (mode === 'auteur' && requete && page === 0 && vaultapi.active()) {
+    cleCatalogue = `vb:${vaultapi.langue()}:auteur:${requete.toLowerCase()}`;
     try {
       const { resultats } = await vaultapi.rechercherAuteur(requete);
       if (resultats.length) {
         void noterDansHistorique(requete, mode);
-        return { resultats, ancien: false, pose: Date.now(), nbSource: 0 };
+        return archiverCatalogue(resultats);
       }
     } catch { /* repli sur Google */ }
   }
@@ -591,7 +605,15 @@ export async function rechercher(texte, mode, page = 0, auteur = '') {
    */
   const promesseNotoriete = (mode === 'titre' && requete) ? notorieteDe(requete) : null;
 
-  const brut = await rechercherBrut(texte, mode, page, auteur);
+  let brut;
+  try {
+    brut = await rechercherBrut(texte, mode, page, auteur);
+  } catch (panne) {
+    // Tout est tombe : la recherche deja faite dans le catalogue, si elle existe, vaut mieux qu'une erreur.
+    const archive = cleCatalogue ? await lireArchive(cleCatalogue) : null;
+    if (!archive) throw panne;
+    return { resultats: archive.resultats, ancien: true, pose: archive.pose, nbSource: 0 };
+  }
 
   /*
    * TOUT CE QUI SE DECIDE SE DECIDE ICI, A LA SORTIE, ET RIEN N'EST ARCHIVE

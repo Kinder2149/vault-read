@@ -1,0 +1,34 @@
+{
+  "date": "2009-05-14",
+  "livre": {
+    "id": 1099977,
+    "titre": "Les dieux déchus"
+  },
+  "serie": {
+    "id": 25608,
+    "nom": "Les Chevaliers d'Émeraude",
+    "total": 12,
+    "position": 8
+  },
+  "titre": "Les dieux déchus",
+  "format": "Paperback",
+  "isbn13": "9782749910147",
+  "langue": "fr",
+  "resume": "Au moment d'attribuer les nouveaux Ecuyers à leurs maîtres, Wellan s'aperçoit qu'il n'y a pas suffisamment de Chevaliers pour chaque apprenti. L'armée sera donc en sous-effectif pour contrer les futures invasions de l'Empereur Noir. Pour y remédier, Jenifael, Lassa et Lia ont recours à la magie des Anciens, et font appel à un vieux sortilège oublié. À peine remis du bouleversement causé par ce charme, les Chevaliers doivent affronter un mystérieux ennemi en provenance du ciel. Sauront-ils se défendre contre les dieux déchus ? De son côté, Onyx prétend vouloir revoir son village natal pour y conduire la famille de Sutton qui désire s'y installer. En réalité, le renégat veut mettre la main sur une arme divine cachée dans la partie la plus méridionale du royaume, et capable de renverser l'ordre du monde. Mais sera-t-il assez fort pour la maîtriser ? Pendant ce temps-là, guidées par Asbeth, les troupes de l'Empereur Noir réussissent à se rendre jusqu'au Château d'Emeraude. Vaincre sa peur",
+  "trouve": true,
+  "auteurs": [
+    "Anne Robillard"
+  ],
+  "editeur": "Michel Lafon",
+  "nbPages": 435,
+  "sources": [
+    "hardcover"
+  ],
+  "couverture": {
+    "url": "https://assets.hardcover.app/external_data/1138913/7ae7ee5829957c6ee788ca411091465de14336b8.jpeg",
+    "source": "hardcover",
+    "approximative": false,
+    "basseDefinition": false
+  },
+  "resumeLangue": "fr"
+}
