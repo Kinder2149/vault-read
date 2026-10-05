@@ -515,7 +515,10 @@ describe('Faire disparaitre ce qui n-est pas l-oeuvre (mission « le bruit d-abo
     // de Cedric Delaunay, « History of Thrones »… sont titres exactement
     // « Game of Thrones » mais signes d'un autre que Martin. Quand Martin est
     // identifie (rang 0), ce sont des derives, pas des editions perdues.
-    const guide = { titre: 'Game of Thrones', auteurs: ['Cédric Delaunay'] };
+    // Etape 2 (2026-10-04) : la fiche reelle de ce guide porte un sous-titre
+    // (Google : « De l'histoire à la série »). Le test l'omettait ; or c'est ce
+    // sous-titre descriptif qui le distingue d'un simple homonyme.
+    const guide = { titre: 'Game of Thrones', sousTitre: 'De l\'histoire à la série', auteurs: ['Cédric Delaunay'] };
     const decode = { titre: 'Game of Thrones décodé', auteurs: ['Ava Cahen'] };
     const gardes = filtrerHorsSujet([roman, guide, decode], 'game of thrones');
     expect(gardes).toContain(roman);
@@ -542,5 +545,51 @@ describe('Faire disparaitre ce qui n-est pas l-oeuvre (mission « le bruit d-abo
 
   it('une recherche vide ne filtre rien', () => {
     expect(filtrerHorsSujet([roman, essai], '')).toHaveLength(2);
+  });
+
+  /*
+   * Mission « base de 10 livres » (2026-09-27) : le banc fixe a montre qu'un
+   * DVD, un recueil « Oeuvres completes », une adaptation jeunesse ou un texte
+   * abrege portent le MEME auteur que le livre cherche. Le signal d'auteur
+   * seul les laissait donc tous passer — ce n'est pas l'auteur qui est en
+   * cause, c'est la forme du produit.
+   */
+  it('ecarte un DVD signe du bon auteur', () => {
+    const dvd = { titre: 'Orgueil Et Prejuges DVD', auteurs: ['Jane Austen'], rangAuteur: 0 };
+    const livre = { titre: 'Orgueil et Préjugés', auteurs: ['Jane Austen'], rangAuteur: 0 };
+    const gardes = filtrerHorsSujet([livre, dvd], 'orgueil et prejuges');
+    expect(gardes).toContain(livre);
+    expect(gardes).not.toContain(dvd);
+  });
+
+  it('ecarte un recueil « Oeuvres completes » signe du bon auteur', () => {
+    const recueil = { titre: 'Oeuvres complètes de Cervantès', auteurs: ['Miguel de Cervantès'], rangAuteur: 0 };
+    const livre = { titre: 'Don Quichotte', auteurs: ['Miguel de Cervantès'], rangAuteur: 0 };
+    const gardes = filtrerHorsSujet([livre, recueil], 'don quichotte');
+    expect(gardes).toContain(livre);
+    expect(gardes).not.toContain(recueil);
+  });
+
+  it('ecarte une version racontee aux enfants / a la jeunesse', () => {
+    const jeunesse = { titre: 'Le Petit Prince raconté aux enfants', auteurs: ['Antoine de Saint-Exupéry'], rangAuteur: 0 };
+    const jeunesse2 = { titre: 'Histoire de Don Quichotte racontée à la jeunesse', auteurs: ['Miguel de Cervantès'], rangAuteur: 0 };
+    const livre = { titre: 'Le Petit Prince', auteurs: ['Antoine de Saint-Exupéry'], rangAuteur: 0 };
+    const gardes = filtrerHorsSujet([livre, jeunesse, jeunesse2], 'le petit prince');
+    expect(gardes).toContain(livre);
+    expect(gardes).not.toContain(jeunesse);
+    expect(gardes).not.toContain(jeunesse2);
+  });
+
+  it('ecarte un texte abrege', () => {
+    const abrege = { titre: 'Don Quichotte - Texte abrégé', auteurs: ['Miguel de Cervantès'], rangAuteur: 0 };
+    const livre = { titre: 'Don Quichotte', auteurs: ['Miguel de Cervantès'], rangAuteur: 0 };
+    const gardes = filtrerHorsSujet([livre, abrege], 'don quichotte');
+    expect(gardes).toContain(livre);
+    expect(gardes).not.toContain(abrege);
+  });
+
+  it('FAIL-OPEN sur le hors-format aussi : si tout est ecarte, on rend la liste entiere', () => {
+    const dvd = { titre: 'Orgueil Et Prejuges DVD', auteurs: ['Jane Austen'], rangAuteur: 0 };
+    expect(filtrerHorsSujet([dvd], 'orgueil et prejuges')).toContain(dvd);
   });
 });

@@ -15,6 +15,8 @@
  * Fonctions pures : aucun etat, aucun rendu, aucun reseau.
  */
 
+import { cleAuteur as cleEcrivain } from './auteurs.js';
+
 /*
  * Un numero de tome doit etre ANNONCE par un mot : tome, t., livre, volume,
  * vol., cycle — ou entre parentheses en fin de titre. Sans cette exigence,
@@ -112,6 +114,29 @@ function cleDeSerie(titre) {
   return comparable(nomDeSerie(titre)).replace(/ /g, '-');
 }
 
+/*
+ * LE TOME ET LE NOM DE SERIE D'UN RESULTAT — tranche 33, chantier 3.
+ *
+ * Retour d'usage : « Harry Potter, aucun tome ne s'affiche ». Cause : les
+ * titres francais n'ecrivent jamais « tome N » (« Harry Potter et la Coupe de
+ * Feu »). Le texte ne porte rien a lire — ce module ne peut pas l'inventer
+ * (§4.4). `books.js` sait, lui, aller lire le meme champ `series` qu'Open
+ * Library expose deja a l'ajout (§3.2), et pose `cycleTome`/`cycleNom` sur la
+ * carte quand le titre est resté muet. On ne s'en sert ICI qu'en dernier
+ * recours, jamais avant le texte : un titre qui ecrit son tome fait
+ * toujours foi sur lui-meme.
+ */
+function cleEtNomDeSerie(r) {
+  const nTexte = numeroDeTome(r.titre);
+  if (nTexte !== null) {
+    return { tome: nTexte, nom: nomDeSerie(r.titre), cle: cleDeSerie(r.titre) };
+  }
+  if (Number.isInteger(r.cycleTome) && r.cycleNom) {
+    return { tome: r.cycleTome, nom: r.cycleNom, cle: comparable(r.cycleNom).replace(/ /g, '-') };
+  }
+  return { tome: null, nom: '', cle: '' };
+}
+
 /**
  * Separe les resultats en SERIES NOMMEES et « le reste ».
  *
@@ -137,13 +162,12 @@ export function separerLesTomes(resultats) {
   const sansNumero = [];
 
   (resultats || []).forEach((r) => {
-    const n = numeroDeTome(r.titre);
-    const cle = n === null ? '' : cleDeSerie(r.titre);
+    const { tome: n, nom, cle } = cleEtNomDeSerie(r);
     // Un titre qui n'est QUE « Tome 3 » ne nomme aucune serie : il rejoint le
     // reste plutot que de fonder une serie anonyme.
     if (n === null || !cle) { sansNumero.push(r); return; }
     if (!parSerie.has(cle)) parSerie.set(cle, []);
-    parSerie.get(cle).push({ ...r, tome: n });
+    parSerie.get(cle).push({ ...r, tome: n, nomSerie: nom });
   });
 
   const series = [];
@@ -157,7 +181,7 @@ export function separerLesTomes(resultats) {
      * pertinence. Deux editions du meme tome restent voisines, la meilleure
      * en premier.
      */
-    series.push({ cle, nom: nomDeSerie(tomes[0].titre), tomes: [...tomes].sort((a, b) => a.tome - b.tome) });
+    series.push({ cle, nom: tomes[0].nomSerie, tomes: [...tomes].sort((a, b) => a.tome - b.tome) });
   });
 
   return { series, autres };
@@ -181,12 +205,21 @@ export function separerLesTomes(resultats) {
 export function organiserLEcran(resultats, requete) {
   const { series, autres } = separerLesTomes(resultats || []);
 
+  // Etape 6 : le niveau passe avant la note (1000 points de plus par niveau).
+  // Par identifiant : les tomes d'une serie sont des COPIES des cartes, le niveau
+  // ne se retrouverait pas par identite d'objet.
+  const niveauParCle = new Map();
+  niveauxDeRecherche(resultats || [], requete).forEach((niveau, r) => niveauParCle.set(r.cleSource, niveau));
+  // Le niveau d'abord, puis le rang de l'auteur chez Open Library (etape 8), puis
+  // la note : 100 000 points par niveau, 1 000 par rang, la note reste sous 300.
+  const malus = (r) => (niveauParCle.get(r.cleSource) || 0) * 100000 + rangDe(r) * 1000;
+
   const blocs = [
     ...series.map((s) => ({
       bloc: { type: 'serie', cle: s.cle, nom: s.nom, tomes: s.tomes },
-      note: Math.max(...s.tomes.map((t) => scorePertinence(t, requete))),
+      note: Math.max(...s.tomes.map((t) => scorePertinence(t, requete) - malus(t))),
     })),
-    ...autres.map((r) => ({ bloc: { type: 'livre', livre: r }, note: scorePertinence(r, requete) })),
+    ...autres.map((r) => ({ bloc: { type: 'livre', livre: r }, note: scorePertinence(r, requete) - malus(r) })),
   ];
 
   // Sans requete, l'ordre d'arrivee fait foi (mode Auteur) : on ne classe pas.
@@ -211,7 +244,7 @@ export function organiserLEcran(resultats, requete) {
 export function nombreDeTomes(resultats) {
   const vus = new Set();
   (resultats || []).forEach((r) => {
-    const n = numeroDeTome(r.titre);
+    const { tome: n } = cleEtNomDeSerie(r);
     if (n !== null) vus.add(n);
   });
   return vus.size;
@@ -511,9 +544,58 @@ export function scorePertinence(resultat, requete) {
  *     identifie sans ambiguite, un « Game of Thrones » signe d'un AUTRE que lui
  *     est un derive, pas une edition perdue du roman.
  */
+/*
+ * PRODUITS DERIVES ET FORMATS DENATURES — mission « base de 10 livres »,
+ * 2026-09-27. Mesure sur le banc fixe : un DVD, un recueil « Oeuvres
+ * completes », une version « racontee aux enfants » ou un texte abrege
+ * portent le MEME auteur que le livre cherche — le signal d'auteur ci-dessous
+ * les laissait donc tous passer. Ce n'est pas un probleme d'auteur, c'est un
+ * probleme de FORME : ce n'est pas le livre qu'on cherche, meme si l'auteur
+ * est le bon. On l'ecarte avant meme de regarder le rang d'auteur.
+ * Reste garde par le filet existant : si ecarter ces titres videait tout
+ * (cas theorique), `filtrerHorsSujet` rend la liste entiere.
+ */
+const MOTIFS_HORS_FORMAT = [
+  /\bdvd\b/i, /\bblu-?ray\b/i, /\bcoffret\s+dvd\b/i,
+  /raconte(?:e)?s?\s+(?:a|aux)\s+(?:la\s+jeunesse|enfants)/i,
+  /\boeuvres?\s+complet(?:es)?\b/i, /\boeuvres?\s+completes?\b/i,
+  /\btexte\s+abrege(?:e)?\b/i, /\bversion\s+abrege(?:e)?\b/i,
+];
+function estHorsFormat(titre) {
+  const t = comparable(titre);
+  return MOTIFS_HORS_FORMAT.some((re) => re.test(t));
+}
+
+/* Mots d'un sous-titre qui ne disent rien du CONTENU : une mention d'edition. */
+const MOTS_MENTION_EDITION = new Set([
+  'edition', 'editions', 'enrichie', 'enrichi', 'illustree', 'illustre', 'annotee', 'annote',
+  'integrale', 'integral', 'poche', 'grand', 'format', 'revue', 'corrigee', 'augmentee',
+  'definitive', 'nouvelle', 'originale', 'complete', 'collector', 'luxe', 'deluxe',
+  'anniversaire', 'bilingue', 'de', 'la', 'le', 'du', 'des', 'en', 'et', 'l',
+]);
+function sousTitreSansSens(sousTitre) {
+  const m = mots(comparable(sousTitre)).filter((x) => !/^\d+$/.test(x));
+  return m.every((x) => MOTS_MENTION_EDITION.has(x));   // aucun sous-titre : vrai
+}
+
 function estDuSujet(r, q, auteurDominant) {
+  // Forme denaturee (DVD, oeuvres completes, jeunesse, abrege) : jamais le
+  // livre cherche, quel que soit l'auteur.
+  if (estHorsFormat(r.titre)) return false;
+
   // Par l'auteur : le signal le plus fiable.
   if (Number.isInteger(r.rangAuteur)) return true;
+
+  /*
+   * ETAPE 2 — UN LIVRE AU TITRE EXACT RESTE, MEME AVEC UN AUTEUR DOMINANT.
+   * Mesure du 2026-10-04 : « la maison vide » ecartait trois vrais livres
+   * (Claretie, Bernasconi, Gnoli) parce que Conan Doyle arrivait en tete chez
+   * Open Library. La lecon de « game of thrones » demeure pourtant : les guides
+   * et derives qui portent EXACTEMENT ce titre ont presque toujours un
+   * sous-titre descriptif. Le titre exact ne sauve donc que sans sous-titre, ou
+   * avec un sous-titre qui n'est qu'une mention d'edition.
+   */
+  if (correspondance(comparable(r.titre), q) >= 100 && sousTitreSansSens(r.sousTitre)) return true;
 
   // Auteur dominant identifie : on ne rattrape plus par le titre.
   if (auteurDominant) return false;
@@ -557,6 +639,131 @@ export function filtrerHorsSujet(resultats, requete) {
   return gardes.length ? gardes : liste;
 }
 
+// ---------------------------------------------------------------------------
+// LE LIVRE CHERCHE (mission « recherche satisfaisante », etape 6, decision 6)
+// ---------------------------------------------------------------------------
+
+/*
+ * Mesure du 2026-10-04 : le classement par score est deja bon quand le filtre a
+ * travaille (les autres livres de l'auteur passent derriere le livre cherche),
+ * mais quand Open Library est trop lente pour que le filtre ecarte les essais, un
+ * essai dont le titre COMMENCE par la recherche passait devant « La communaute de
+ * l'anneau » — le vrai livre, dont le titre ne commence pas par la saisie.
+ *
+ * Trois NIVEAUX, le niveau avant le score. Le livre de reference est la carte la
+ * mieux classee.
+ *   0. le livre cherche : le titre est EXACTEMENT la recherche (de n'importe quel
+ *      auteur : les homonymes restent), ou il la COMMENCE et a le meme auteur
+ *      que la reference (les tomes, les editions) ;
+ *   1. le meme auteur, un autre livre (une autre serie, la traduction du titre) ;
+ *   2. tout le reste : essais, etudes, derives d'autres auteurs.
+ * Rien ne disparait : un niveau descend, il ne s'efface pas.
+ */
+function memeEcrivain(a, b) {
+  const [fa, ia = ''] = cleEcrivain(a).split('|');
+  const [fb, ib = ''] = cleEcrivain(b).split('|');
+  if (!fa || fa !== fb || !ia || !ib) return false;   // un nom seul ne rapproche personne
+  const inclus = (x, y) => [...x].every((c) => y.includes(c));
+  return inclus(ia, ib) || inclus(ib, ia);
+}
+
+/** Le rang de l'auteur chez Open Library (0 = la reponse a la recherche). */
+export function rangDe(r) {
+  return Number.isInteger(r.rangAuteur) ? r.rangAuteur : 50;
+}
+
+export function niveauxDeRecherche(resultats, requete) {
+  const liste = resultats || [];
+  const niveaux = new Map();
+  const q = comparable(requete);
+  if (!q || liste.length === 0) {
+    liste.forEach((r) => niveaux.set(r, 0));
+    return niveaux;
+  }
+
+  /*
+   * ETAPE 8 : LE LIVRE DE REFERENCE EST CELUI DE L'AUTEUR QUE OPEN LIBRARY
+   * DESIGNE, pas le mieux note. Mesure du 2026-10-04 sur « les fourmis » : un
+   * documentaire homonyme de Boris Vian (titre exact, 100 points) battait
+   * « Les Fourmis - Intégrale » de Werber (titre plus long, 70 points) et le
+   * reste de l'oeuvre de Werber tombait au niveau 2. Parmi les cartes dont le
+   * titre colle (exact ou commencant par la saisie), on retient donc la mieux
+   * placee chez Open Library, puis la mieux notee. Sans aucun rang (Open Library
+   * muette), on retombe sur la meilleure note, comme avant.
+   */
+  const colle = liste.filter((r) => correspondance(comparable(r.titre), q) >= 70);
+  const pool = colle.length > 0 ? colle : liste;
+  let reference = pool[0];
+  pool.forEach((r) => {
+    const mieux = rangDe(r) < rangDe(reference)
+      || (rangDe(r) === rangDe(reference) && scorePertinence(r, requete) > scorePertinence(reference, requete));
+    if (mieux) reference = r;
+  });
+
+  /*
+   * « Le meme auteur » se lit sur TOUS les auteurs de la fiche : une BD signee
+   * « Vanyda; Christelle Dabos » est aussi de Christelle Dabos. Sinon, quand elle
+   * devenait la reference, les vrais tomes de Dabos tombaient au niveau 2.
+   */
+  const auteursDe = (r) => (r.auteurs || []).slice(0, 4);
+  const memeAuteurQue = (r, autre) => auteursDe(r).some((a) => auteursDe(autre).some((b) => memeEcrivain(a, b)));
+
+  liste.forEach((r) => {
+    const memeAuteur = memeAuteurQue(r, reference);
+    const c = correspondance(comparable(r.titre), q);
+    if (c >= 100 || (c >= 70 && memeAuteur)) niveaux.set(r, 0);
+    else niveaux.set(r, memeAuteur ? 1 : 2);
+  });
+  return niveaux;
+}
+
+// ---------------------------------------------------------------------------
+// LE REPLI « VOIR AUSSI » (mission « recherche satisfaisante », etape 9)
+// ---------------------------------------------------------------------------
+
+/*
+ * Le critere « au plus 3 parasites dans les 10 premiers » ne se tient pas avec
+ * le seul tri : « descendre sans disparaitre » laisse les parasites dans la
+ * liste. On les range donc SOUS UN REPLI, deplie d'un clic. Rien n'est supprime.
+ *
+ * Visible : tous les livres du niveau 0 — sauf les editions dans une AUTRE LANGUE
+ * quand au moins une edition francaise du livre cherche existe — puis TROIS
+ * « autres » au plus (autres livres de l'auteur, etudes), les mieux classes. Le
+ * reste va sous le repli.
+ *
+ * Garde-fous : aucun livre ne correspond au titre (niveau 0 vide) -> rien n'est
+ * replie ; une langue inconnue n'est jamais « etrangere ».
+ *
+ * Compromis assume, mesure sur « game of thrones » : les tomes francais du
+ * « Trone de fer » ont un autre titre, donc comptent comme « autres » et peuvent
+ * passer sous le repli. Tant qu'aucune source ne relie une traduction a son
+ * original, on ne sait pas faire mieux.
+ */
+export const MAX_AUTRES_VISIBLES = 3;
+
+export function separerLePrincipal(resultats, requete, maxAutres = MAX_AUTRES_VISIBLES) {
+  const liste = resultats || [];
+  const tout = { principaux: liste, replies: [] };
+  if (!comparable(requete) || liste.length === 0) return tout;
+
+  const niveaux = niveauxDeRecherche(liste, requete);
+  if (!liste.some((r) => niveaux.get(r) === 0)) return tout;
+
+  const etrangere = (r) => Boolean(r.langue) && !/^fr/i.test(String(r.langue));
+  const frAuNiveau0 = liste.some((r) => niveaux.get(r) === 0 && !etrangere(r) && /^fr/i.test(String(r.langue || '')));
+
+  const principaux = [];
+  const replies = [];
+  let autres = 0;
+  liste.forEach((r) => {
+    if (frAuNiveau0 && etrangere(r)) { replies.push(r); return; }
+    if (niveaux.get(r) === 0) { principaux.push(r); return; }
+    if (autres < maxAutres) { autres += 1; principaux.push(r); return; }
+    replies.push(r);
+  });
+  return { principaux, replies };
+}
+
 /**
  * Trie une liste de resultats.
  *
@@ -577,8 +784,14 @@ export function trierResultats(resultats, tri, requete = '') {
   if (tri !== 'recent') {
     if (!comparable(requete)) return liste;
     const notes = new Map(liste.map((r) => [r, scorePertinence(r, requete)]));
-    // `sort` est stable : a score egal, l'ordre de Google est conserve.
-    return liste.sort((a, b) => notes.get(b) - notes.get(a));
+    const niveaux = niveauxDeRecherche(liste, requete);
+    // `sort` est stable : a score egal, l'ordre de Google est conserve. Le
+    // niveau passe avant le score (etape 6) : un essai ne double jamais un livre.
+    // Etape 8 : a l'interieur d'un niveau, l'auteur le mieux place chez Open Library
+    // d'abord (un homonyme sans rang ne double plus l'auteur designe), puis la note.
+    return liste.sort((a, b) => (niveaux.get(a) - niveaux.get(b))
+      || (rangDe(a) - rangDe(b))
+      || (notes.get(b) - notes.get(a)));
   }
 
   return liste.sort((a, b) => {

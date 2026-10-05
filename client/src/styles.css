@@ -953,6 +953,22 @@ button { font: inherit; color: inherit; }
 .groupe-auteur__compte {
   flex: 0 0 auto; font-size: .78rem; font-weight: 400; color: var(--muted);
 }
+/*
+ * « Voir aussi » (etape 9) : les autres livres de l'auteur et les editions en
+ * d'autres langues, repliees sous le livre cherche. Rien n'est supprime : un
+ * clic les deploie. Meme filet que le separateur des homonymes ci-dessous.
+ */
+.voir-aussi {
+  margin: 1.25rem 0 1.5rem; padding-top: .75rem;
+  border-top: 1px solid var(--border);
+}
+.voir-aussi__titre {
+  cursor: pointer; font-weight: 600; padding: .5rem 0; margin-bottom: .5rem;
+  list-style-position: inside;
+}
+.voir-aussi__aide { font-weight: 400; font-size: .78rem; color: var(--muted); }
+.voir-aussi[open] > .voir-aussi__titre { margin-bottom: .75rem; }
+
 /* Separateur avant les homonymes : ils sont la reponse a une autre question. */
 .groupe-auteur__separateur {
   margin: 1.25rem 0 .5rem; padding-top: .75rem;

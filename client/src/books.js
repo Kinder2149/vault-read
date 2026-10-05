@@ -16,7 +16,7 @@ import * as bnf from './sources/bnf.js';
  * dans un fichier de presentation : c'est l'inverse, on emprunte un calcul.
  * Il sert a designer, dans un groupe de doublons, la fiche qui fera la carte.
  */
-import { numeroDeTome, scorePertinence, filtrerHorsSujet } from './tomes.js';
+import { numeroDeTome, scorePertinence, filtrerHorsSujet, niveauxDeRecherche } from './tomes.js';
 
 /** @typedef {import('./types.js').ResultatRecherche} ResultatRecherche */
 /** @typedef {import('./types.js').Identite} Identite */
@@ -210,7 +210,33 @@ const MOTS_EDITION = new Set([
   'edition', 'editions', 'poche', 'broche', 'brochee', 'relie', 'reliee',
   'collector', 'grand', 'format', 'nouvelle', 'revue', 'augmentee',
   'definitive', 'anniversaire', 'tome', 'tomes', 'volume', 'vol',
+  // Etape 4 (2026-10-04), vus sur « germinal » et « le grand meaulnes » :
+  'large', 'print', 'annotee', 'annote', 'abregee', 'abrege', 'scolaire',
+  'bilingue', 'enrichie',
+  // Etape 10 (R3), vus sur « germinal » : une faute de frappe courante d'« illustree ».
+  'illustrer', 'illustres', 'illustrees',
 ]);
+
+/*
+ * ETAPE 10 (R2) — un GENRE ecrit apres le deux-points n'est pas une partie du
+ * titre : « L'elegance du herisson : roman » est « L'elegance du herisson ». Seul
+ * le segment FINAL, et seulement s'il ne contient que ces mots.
+ */
+const MOTS_DE_GENRE = new Set([
+  'roman', 'romans', 'nouvelle', 'nouvelles', 'recit', 'recits', 'essai', 'essais',
+  'poeme', 'poemes', 'theatre', 'piece', 'conte', 'contes', 'fable', 'fables',
+  'biographie', 'autobiographie', 'document', 'chronique', 'chroniques', 'et', 'de', 'la', 'le', 'un', 'une',
+]);
+
+function sansGenreFinal(titre) {
+  const brut = String(titre || '');
+  const i = brut.lastIndexOf(':');
+  if (i < 0) return brut;
+  const segment = normaliser(brut.slice(i + 1), false).split('-').filter(Boolean);
+  const genreSeul = segment.length > 0 && segment.every((m) => MOTS_DE_GENRE.has(m))
+    && segment.some((m) => !['et', 'de', 'la', 'le', 'un', 'une'].includes(m));
+  return genreSeul ? brut.slice(0, i) : brut;
+}
 
 /*
  * TRANCHE 31 — « coffret » et « integrale » NE SONT PAS des mentions de format.
@@ -255,26 +281,150 @@ const MOTS_INTEGRALE = new Set(['integrale', 'integrales']);
 const ESTNOMBRE = /^\d+$/;
 const ESTANNEE = /^\d{4}$/;
 
-function titreOeuvre(titre) {
-  const sansParentheses = String(titre || '').replace(/\([^)]*\)/g, ' ');
-  const mots = normaliser(sansParentheses, false).split('-').filter(Boolean)
+/** Les mots de l'oeuvre, sous forme d'ensemble — voir `memeLivre`. */
+function motsDeLOeuvre(titre) {
+  // Une parenthese jamais refermee est un titre COUPE par la source (« … (Par>
+  // Louis-Ferdinand Celine (Pseud ») : ce qui suit n'est pas le titre.
+  const sansParentheses = sansGenreFinal(titre).replace(/\([^)]*\)/g, ' ').replace(/\([^)]*$/, ' ');
+  const brutes = normaliser(sansParentheses, false).split('-').filter(Boolean);
+  // Etape 10 (R3) : « texte integral » est une mention d'edition (le texte entier
+  // d'UN livre), a ne pas confondre avec une « integrale » qui en reunit plusieurs.
+  const sansTexteIntegral = brutes.filter((m, i) => !((m === 'texte' && brutes[i + 1] === 'integral')
+    || (m === 'integral' && brutes[i - 1] === 'texte')));
+  const mots = sansTexteIntegral
     .filter((mot) => !ESTANNEE.test(mot))
     .map((mot) => (ESTNOMBRE.test(mot) ? String(Number(mot)) : mot));
   const numerote = mots.some((mot) => ESTNOMBRE.test(mot));
   const filtre = mots
     .filter((mot) => ESTNOMBRE.test(mot)
-      || (mot.length > 2 && !MOTS_EDITION.has(mot) && !(numerote && MOTS_INTEGRALE.has(mot))))
-    .join('-');
-  return filtre || normaliser(titre, false);
+      || (mot.length > 2 && !MOTS_EDITION.has(mot) && !(numerote && MOTS_INTEGRALE.has(mot))));
+  return new Set(filtre.length ? filtre : [normaliser(titre, false)].filter(Boolean));
 }
 
-function cleRegroupement(titre, auteurs, sousTitre = null) {
-  const premier = Array.isArray(auteurs) ? auteurs[0] : auteurs;
-  const nom = cleAuteur(premier);
-  const t = titreOeuvre(titre);
-  if (!t || !nom) return null;
-  const tome = numeroDeTome(`${titre || ''} ${sousTitre || ''}`);
-  return `grp:${t}|${nom}|t${tome ?? ''}`;
+/*
+ * UNE SEULE DEFINITION DE « MEME LIVRE » POUR LA RECHERCHE (mission « recherche
+ * satisfaisante », etape 4, decision 6).
+ *
+ * Elle remplace `cleRegroupement`, qui exigeait le MEME titre reduit et le meme
+ * nom d'auteur ecrit pareil. Mesure du 2026-10-04 : le tome 3 du Seigneur des
+ * anneaux sortait en 4 cartes (« Le seigneur des anneaux » + sous-titre « Le
+ * retour du roi. Tome 3 », « … T3 Le retour du roi », « … (Tome 3) - Le Retour
+ * du Roi »), Germinal en 3 (« Large Print », « Annotee »), Le Grand Meaulnes
+ * sous deux ecritures d'Alain-Fournier.
+ *
+ * Deux fiches sont le meme livre si, au choix :
+ *   1. elles portent le meme ISBN — la preuve (voir `fusionnerDoublons`) ;
+ *   2. elles ont le meme AUTEUR (lecture tolerante de `memeAuteur`), le meme
+ *      NUMERO DE TOME, et des titres compatibles :
+ *        - sans tome : les memes mots, une fois retirees les mentions d'edition ;
+ *        - avec un tome : les mots de l'un sont inclus dans ceux de l'autre.
+ *
+ * Ce que cette regle NE fait PAS, volontairement : rapprocher une fiche AVEC
+ * tome d'une fiche SANS tome (« La Passe-miroir (Livre 3) - La Memoire de Babel »
+ * et « La memoire de Babel »), ni deux titres francais differents pour un meme
+ * tome. Sans autre preuve, cela collerait « Harry Potter » (la saga) sur un de ses
+ * tomes. C'est l'affaire de l'etape 5, avec la confirmation d'Open Library.
+ * Mieux vaut une carte en double qu'une fusion fausse (tranche 29).
+ */
+function identiteDeLivre(r) {
+  const nom = Array.isArray(r.auteurs) ? r.auteurs[0] : r.auteurs;
+  const auteur = nom ? profilAuteur(nom) : null;
+  if (!r.titre || !auteur) return null;
+  return {
+    auteur,
+    mots: motsDeLaFiche(r),
+    tome: numeroDeTome(`${r.titre || ''} ${r.sousTitre || ''}`),
+  };
+}
+
+/*
+ * ETAPE 10 — LES MOTS D'UNE FICHE : ceux de son titre, avec deux corrections.
+ *
+ *  R1. Le NOM DE L'AUTEUR ecrit dans le titre n'en fait pas partie :
+ *      « Le Grand Meaulnes Alain-Fournier illustree », « A Game of Thrones,
+ *      George R R Martin ». Seuls les noms des auteurs de CETTE fiche partent, et
+ *      jamais au point de vider le titre (« Stephen King » reste « Stephen King »).
+ *  R5. Une mention « l'integrale » en SOUS-TITRE rejoint le titre : « La quete
+ *      d'Ewilan » + [l'integrale] est « L'integrale La Quete d'Ewilan ». Seulement
+ *      si le sous-titre ne dit que cela, et si le titre ne porte pas de numero (une
+ *      integrale numerotee est un tome, tranche 31).
+ */
+function motsDeLaFiche(r) {
+  const mots = motsDeLOeuvre(r.titre);
+
+  const nomsAuteurs = new Set((Array.isArray(r.auteurs) ? r.auteurs : [r.auteurs]).slice(0, 4)
+    .flatMap((nom) => normaliser(String(nom || '').replace(/\([^)]*\)/g, ' '), false).split('-'))
+    .filter((m) => m.length > 2 && !ESTNOMBRE.test(m)));
+  /*
+   * GARDE-FOU, trouve en rejouant la mesure : « Voyage au bout de la nuit DE
+   * Louis-Ferdinand Celine (fiche de lecture) » serait devenu le roman. Un nom
+   * d'auteur precede de « de », « du » ou « d' » designe un livre SUR l'oeuvre
+   * (fiche de lecture, analyse, etude) : alors les noms restent dans le titre.
+   */
+  const jetons = normaliser(r.titre, false).split('-');
+  const livreSurLAuteur = jetons.some((j, i) => i > 0 && nomsAuteurs.has(j) && ['de', 'du', 'des', 'd'].includes(jetons[i - 1]));
+  const sansAuteur = livreSurLAuteur ? [...mots] : [...mots].filter((m) => !nomsAuteurs.has(m));
+  const resultat = new Set(sansAuteur.length > 0 ? sansAuteur : mots);
+
+  const sous = normaliser(r.sousTitre || '', false).split('-')
+    .filter((m) => m.length > 2 && !MOTS_EDITION.has(m));
+  const titreNumerote = [...resultat].some((m) => ESTNOMBRE.test(m));
+  if (sous.length === 1 && MOTS_INTEGRALE.has(sous[0]) && !titreNumerote) resultat.add('integrale');
+  return resultat;
+}
+
+/*
+ * ETAPE 5 — DEUX FICHES QU'OPEN LIBRARY RATTACHE A LA MEME OEUVRE sont le meme
+ * livre, meme ecrit dans deux langues. Mesure du 2026-10-04 : « Philosopher's
+ * Stone » (anglais) et « A l'ecole des sorciers » (francais) pointent la meme
+ * oeuvre ; Open Library connait aussi des oeuvres en DOUBLE et colle volontiers
+ * un coffret sur le 1er tome — d'ou trois garde-fous, car mieux vaut une carte
+ * en double qu'une fusion fausse :
+ *   - le meme auteur (lecture tolerante) ;
+ *   - aucun conflit de numero de tome (le tome 2 n'est jamais le tome 3) ;
+ *   - jamais un coffret, une integrale ou un « box set » : ils reunissent
+ *     plusieurs livres, quelle que soit l'oeuvre que leur prete Open Library.
+ */
+const MOTIF_PLUSIEURS_LIVRES = /\b(coffret|box|boxed|boxset|set|integrale|integral|collection|complete|completes|series|serie|oeuvres|omnibus|volumes|tomes)\b/;
+
+function reunitPlusieursLivres(r) {
+  const texte = normaliser(`${r.titre || ''} ${r.sousTitre || ''}`, false).replace(/-/g, ' ');
+  return MOTIF_PLUSIEURS_LIVRES.test(texte);
+}
+
+function memeOeuvreOL(a, b) {
+  if (!a.oeuvreOL || a.oeuvreOL !== b.oeuvreOL) return false;
+  if (reunitPlusieursLivres(a) || reunitPlusieursLivres(b)) return false;
+  const ia = identiteDeLivre(a);
+  const ib = identiteDeLivre(b);
+  if (!ia || !ib || !memeAuteur(ia.auteur, ib.auteur)) return false;
+  if (ia.tome !== null && ib.tome !== null && ia.tome !== ib.tome) return false;
+  return true;
+}
+
+function estInclus(petit, grand) {
+  return [...petit].every((mot) => grand.has(mot));
+}
+
+/*
+ * ETAPE 10 (R4) — INCLUSION TOLERANTE A UNE FAUTE DE FRAPPE, pour deux fiches
+ * deja reconnues du MEME auteur et du MEME numero de tome : un mot d'au moins
+ * cinq lettres qui COMMENCE un autre mot compte comme present (« forter » dans
+ * « forteresse »). Jamais sans numero de tome : ce serait fusionner a l'aveugle.
+ */
+function estInclusTolerant(petit, grand) {
+  return [...petit].every((mot) => grand.has(mot)
+    || (mot.length >= 5 && [...grand].some((g) => g.length >= 5 && (g.startsWith(mot) || mot.startsWith(g)))));
+}
+
+function memeLivre(a, b) {
+  if (!a || !b) return false;
+  if (!memeAuteur(a.auteur, b.auteur)) return false;
+  if (a.tome !== b.tome) return false;
+  if (a.tome === null) return a.mots.size === b.mots.size && estInclus(a.mots, b.mots);
+  // Avec un tome : l'inclusion, mais jamais sur un titre reduit a des chiffres.
+  const [petit, grand] = a.mots.size <= b.mots.size ? [a.mots, b.mots] : [b.mots, a.mots];
+  return [...petit].some((mot) => !ESTNOMBRE.test(mot)) && estInclusTolerant(petit, grand);
 }
 
 /*
@@ -345,8 +495,15 @@ function cleAuteur(nom) {
  * fiches (cleAuteur, plus haut) est inchangee, elle exige plus de certitude.
  */
 function profilAuteur(nom) {
-  const complet = cleAuteur(nom);
-  const brut = String(nom || '');
+  /*
+   * ETAPE 2 (mission « recherche satisfaisante ») — le ROLE entre parentheses ne
+   * fait pas partie du nom : « Christelle Dabos (autrice) » est Christelle Dabos.
+   * Mesure du 2026-10-04 : c'est ce qui faisait ecarter l'adaptation en BD de
+   * La Passe-miroir. Seule cette fonction nettoie : la cle de FUSION (cleAuteur)
+   * garde son exigence.
+   */
+  const brut = String(nom || '').replace(/\([^)]*\)/g, ' ').trim();
+  const complet = cleAuteur(brut);
   const avantVirgule = brut.includes(',') ? brut.split(',')[0] : null;
   const mots = normaliser(brut, false).split('-').filter(Boolean)
     .filter((m, i, tous) => i === 0 || m !== tous[i - 1]);
@@ -369,7 +526,21 @@ function memeAuteur(a, b) {
   if (a.complet && a.complet === b.complet) return true;
   if (a.famille !== b.famille) return false;
   if (!a.initiales || !b.initiales) return !a.initiales && !b.initiales;
-  return a.initiales.startsWith(b.initiales) || b.initiales.startsWith(a.initiales);
+  return estSousSuite(a.initiales, b.initiales) || estSousSuite(b.initiales, a.initiales);
+}
+
+/*
+ * ETAPE 2 — les initiales de l'une sont-elles une SOUS-SUITE de l'autre ?
+ * « a » dans « ha » (Alain-Fournier / Henri Alain-Fournier), « a » dans « haa »
+ * (Henri-Alban Alain-Fournier) : le prenom compose et le nom d'usage. Un simple
+ * debut commun ne les rapprochait pas. Un prenom different reste different
+ * (« jk » n'est pas une sous-suite de « jrr »).
+ */
+function estSousSuite(court, long) {
+  if (court.length > long.length) return false;
+  let i = 0;
+  for (const c of long) if (c === court[i]) i += 1;
+  return i === court.length;
 }
 
 /*
@@ -432,13 +603,31 @@ export function fusionnerDoublons(resultats, requete = '') {
     });
   });
 
-  // 2. Le titre entier, l'auteur, le tome.
-  const parTitre = new Map();
+  // 2. L'auteur, le tome, des titres compatibles (voir `memeLivre`). Rangees
+  //    par nom de famille : on ne compare que des fiches qui ont une chance.
+  const parFamille = new Map();
   liste.forEach((r) => {
-    const cle = cleRegroupement(r.titre, r.auteurs, r.sousTitre);
-    if (!cle) return;   // sans titre ou sans auteur : la fiche reste seule
-    if (parTitre.has(cle)) unir(parTitre.get(cle), r.cleSource);
-    else parTitre.set(cle, r.cleSource);
+    const identite = identiteDeLivre(r);
+    if (!identite) return;   // sans titre ou sans auteur : la fiche reste seule
+    const famille = identite.auteur.famille;
+    if (!parFamille.has(famille)) parFamille.set(famille, []);
+    const deja = parFamille.get(famille);
+    // Tous les freres, pas seulement le premier : la regle n'est pas transitive
+    // (inclusion), et l'issue ne doit pas dependre de l'ordre d'arrivee.
+    deja.filter((autre) => memeLivre(autre.identite, identite))
+      .forEach((frere) => unir(frere.cleSource, r.cleSource));
+    deja.push({ cleSource: r.cleSource, identite });
+  });
+
+  // 3. L'oeuvre d'Open Library, quand elle est connue (etape 5, decision 2) : la
+  //    preuve qui relie une traduction a son original. Voir `memeOeuvreOL`.
+  const parOeuvre = new Map();
+  liste.forEach((r) => {
+    if (!r.oeuvreOL) return;
+    if (!parOeuvre.has(r.oeuvreOL)) parOeuvre.set(r.oeuvreOL, []);
+    const deja = parOeuvre.get(r.oeuvreOL);
+    deja.filter((autre) => memeOeuvreOL(autre, r)).forEach((frere) => unir(frere.cleSource, r.cleSource));
+    deja.push(r);
   });
 
   const groupes = new Map();
@@ -472,6 +661,179 @@ export function fusionnerDoublonsAffichage(resultats, requete = '') {
 }
 
 /*
+ * TOME CONNU D'OPEN LIBRARY, QUAND LE TITRE N'ECRIT RIEN — tranche 33,
+ * chantier 3. Retour d'usage : « Harry Potter, aucun tome ne s'affiche ».
+ * Les titres francais de cette saga n'ecrivent jamais « tome N » : le texte
+ * ne porte rien a lire (§4.4, tomes.js ne peut rien inventer).
+ *
+ * Open Library porte pourtant ce numero dans le champ `series` de ses
+ * editions — la MEME donnee que §3.2/§4.4 lisent deja a l'ajout d'un livre
+ * (`identiteParRecherche`). On la lit ici un cran plus tot, pour l'affichage
+ * de la recherche, SEULEMENT pour les cartes que le texte a laissees muettes
+ * — un titre qui ecrit son tome fait toujours foi sur lui-meme, on ne le
+ * recouvre jamais.
+ *
+ * Sans quota strict chez Open Library (§4.2), mais chaque appel coute de la
+ * latence : plafonne a un budget court par carte, et une carte dont Open
+ * Library ne dit rien (panne, silence, pas de serie) reste SANS numero —
+ * jamais un numero invente.
+ */
+const BUDGET_TOME_MS = 4000;
+/*
+ * Ne PAYER cet appel que pour une saga PRESSENTIE — au moins 3 cartes du meme
+ * auteur sans numero de tome lisible dans leur titre. En dessous, ce n'est
+ * jamais une saga muette (§4.6, meme seuil que separerLesTomes) : ce serait
+ * un appel Open Library de plus sur CHAQUE livre simple de la recherche, pour
+ * un gain nul l'immense majorite du temps.
+ */
+const SEUIL_SAGA_PRESSENTIE = 3;
+
+/*
+ * L'IDENTITE LA PLUS FIABLE POUR CETTE CARTE — tranche 33, chantier 3 ter.
+ * Verifie en vrai sur Harry Potter (2026-09-27) : la recherche par TITRE
+ * (`identiteParRecherche`) se trompe d'oeuvre — « Coupe de Feu », « Prisonnier
+ * d'Azkaban » et « Chambre des Secrets » sont tous les trois resolus vers la
+ * MEME oeuvre par la « meilleure correspondance » d'Open Library, ce qui rend
+ * la deduction par date impossible (trois memes annees).
+ *
+ * L'ISBN, quand Google en fournit un, identifie l'EDITION EXACTE (§3.2, « le
+ * chemin normal ») : aucune ambiguite possible. On l'utilise en priorite pour
+ * trouver l'oeuvre, PUIS on relit sa premiere publication par la CLE de cette
+ * oeuvre (`premierePublicationParOeuvre`) — jamais par une nouvelle recherche
+ * texte, qui reintroduirait la meme confusion.
+ * Sans ISBN, seul reste le repli par titre, moins sur mais mieux que rien.
+ */
+async function identiteFiablePourTome(carte, budget = null) {
+  const isbn = carte.isbn13 || carte.isbn10;
+  if (isbn) {
+    // Memorisee (etape 5) : la recherche vient peut-etre deja de la demander.
+    // `undefined` = le budget de la recherche est epuise : on ne demande pas.
+    const parIsbn = await identiteOLMemorisee(isbn, BUDGET_TOME_MS, budget);
+    if (parIsbn === undefined) return null;
+    if (parIsbn && parIsbn.oeuvreId) {
+      // Etape 8 : memorisee elle aussi, et partagee par toutes les editions de
+      // l'oeuvre (le francais et l'anglais ne coutent qu'une requete).
+      const premierePublication = await publicationOLMemorisee(parIsbn.oeuvreId, BUDGET_TOME_MS, budget)
+        .catch(() => null);
+      return { ...parIsbn, premierePublication: premierePublication ?? null };
+    }
+  }
+  if (!depenserBudgetOL(budget)) return null;
+  return ol.identiteParRecherche(carte.titre, carte.auteurs[0], BUDGET_TOME_MS);
+}
+
+export async function enrichirTomesConnus(cartes, requete = '', budget = null) {
+  const liste = cartes || [];
+  /*
+   * ETAPE 8 : avec une recherche, on ne s'interesse qu'au LIVRE CHERCHE (niveau
+   * 0). Les autres livres de l'auteur, les essais et les homonymes n'ont pas a
+   * faire payer Open Library pour un numero de tome que personne ne verra. Sans
+   * recherche (appel isole), comportement inchange.
+   */
+  const niveaux = /[a-z0-9]/i.test(String(requete || '')) ? niveauxDeRecherche(liste, requete) : null;
+  const sansTome = liste.filter((c) => numeroDeTome(`${c.titre || ''} ${c.sousTitre || ''}`) === null
+    && (c.auteurs || [])[0]
+    && (!niveaux || niveaux.get(c) === 0));
+
+  const parAuteur = new Map();
+  sansTome.forEach((c) => {
+    const cle = cleAuteur(c.auteurs[0]);
+    if (!parAuteur.has(cle)) parAuteur.set(cle, []);
+    parAuteur.get(cle).push(c);
+  });
+
+  const aEnrichir = new Set();
+  parAuteur.forEach((groupe) => {
+    if (groupe.length >= SEUIL_SAGA_PRESSENTIE) groupe.forEach((c) => aEnrichir.add(c));
+  });
+  if (aEnrichir.size === 0) return liste;
+
+  const identites = new Map();
+  // Les mieux classees d'abord : si le budget s'epuise, ce sont elles qui l'ont eu.
+  const ordreDemande = [...aEnrichir].sort((a, b) => scorePertinence(b, requete) - scorePertinence(a, requete));
+  await Promise.all(ordreDemande.map(async (carte) => {
+    try {
+      identites.set(carte, await identiteFiablePourTome(carte, budget));
+    } catch { /* silence : la carte reste sans numero, comme le veut §4.4 */ }
+  }));
+
+  const enrichies = new Map();
+  identites.forEach((identite, carte) => {
+    if (identite && Number.isInteger(identite.cycleTome) && identite.cycleNom) {
+      enrichies.set(carte, { ...carte, cycleTome: identite.cycleTome, cycleNom: identite.cycleNom });
+    }
+  });
+
+  deduireTomesParDate(parAuteur, identites, enrichies);
+
+  return liste.map((c) => enrichies.get(c) || c);
+}
+
+/*
+ * DEDUCTION PAR DATE — tranche 33, chantier 3 bis. Critere ecrit par Kinder
+ * (2026-09-27) : Open Library ne connait pas non plus le tome de Harry Potter
+ * (verifie sur de vraies editions Gallimard et Pottermore, champ `series`
+ * vide). Faute de source qui l'ECRIT, on le DEDUIT de la date de TOUTE
+ * PREMIERE publication (`premierePublication`, Open Library) — une donnee
+ * reelle, mais une deduction, pas une lecture. Une carte deduite porte
+ * `tomeDeduit: true` : l'ecran l'affiche autrement (« tome N (deduit) »),
+ * jamais comme un fait aussi sur qu'un numero lu.
+ *
+ * La date vient d'OPEN LIBRARY, jamais de Google : verifie sur Harry Potter,
+ * la date d'edition de Google est celle d'une REIMPRESSION — cinq tomes
+ * differents partagent la meme date francaise (« 2015-12-08 »), ce qui rend
+ * tout ordre par date Google inutilisable. `first_publish_year` d'Open
+ * Library distingue vraiment les sept tomes (1997 a 2007).
+ *
+ * Conditions, toutes requises, pour ne jamais deviner a moitie :
+ *  - le groupe (meme auteur, >= 3, sans numero) n'a reçu AUCUN numero ECRIT
+ *    d'Open Library — un groupe partiellement connu ne se complete pas par
+ *    date, cela melangerait deux origines de numero sur une seule serie ;
+ *  - CHAQUE carte du groupe a une premiere publication connue d'Open
+ *    Library ;
+ *  - toutes les annees sont DISTINCTES — deux memes annees rendent l'ordre
+ *    ambigu, mieux vaut n'en numeroter aucune ;
+ *  - les titres partagent un DEBUT commun (« Harry Potter ») : sans nom a
+ *    donner a la serie, il n'y a rien a annoncer a l'ecran.
+ */
+/*
+ * Un connecteur final SEUL ne nomme rien (« Harry Potter et » — le dernier mot
+ * commun aux 7 titres est la conjonction qui introduit CHAQUE sous-titre, pas
+ * la serie). On le retire s'il termine le prefixe trouve.
+ */
+const CONNECTEURS_FINAUX = new Set(['et', 'de', 'du', 'des', 'la', 'le', 'les', 'l']);
+
+function debutCommun(cartes) {
+  const mots = cartes.map((c) => String(c.titre || '').trim().split(/\s+/));
+  const min = Math.min(...mots.map((m) => m.length));
+  let n = 0;
+  while (n < min && mots.every((m) => normaliser(m[n], false) === normaliser(mots[0][n], false))) n += 1;
+  while (n > 0 && CONNECTEURS_FINAUX.has(normaliser(mots[0][n - 1], false))) n -= 1;
+  return n > 0 ? mots[0].slice(0, n).join(' ') : null;
+}
+
+function deduireTomesParDate(parAuteur, identites, enrichies) {
+  parAuteur.forEach((groupe) => {
+    if (groupe.length < SEUIL_SAGA_PRESSENTIE) return;
+    if (groupe.some((c) => enrichies.has(c))) return;   // Open Library a ECRIT un numero pour au moins une
+
+    const annees = groupe.map((c) => identites.get(c)?.premierePublication ?? null);
+    if (annees.some((a) => a === null)) return;          // une date manquante : on n'invente rien
+    if (new Set(annees).size !== annees.length) return;  // deux memes annees : ordre ambigu
+
+    const nom = debutCommun(groupe);
+    if (!nom) return;                                     // pas de nom a donner a la serie
+
+    groupe
+      .map((carte, i) => [carte, annees[i]])
+      .sort((a, b) => a[1] - b[1])
+      .forEach(([carte], i) => {
+        enrichies.set(carte, { ...carte, cycleTome: i + 1, cycleNom: nom, tomeDeduit: true });
+      });
+  });
+}
+
+/*
  * Toutes les cles d'une fiche — y compris celles qu'elle a deja absorbees.
  * C'est ce qui rend la fusion IDEMPOTENTE : l'ecran refond la liste entiere a
  * chaque page chargee, et refondre un resultat deja fondu ne doit pas lui
@@ -491,14 +853,28 @@ function fondre(groupe, requete) {
    * gagne. A egalite, la premiere arrivee : l'ordre de Google reste une
    * information.
    */
-  let base = groupe[0];
+  /*
+   * ETAPE 5 (decision 2) : quand le groupe reunit plusieurs LANGUES, l'edition
+   * FRANCAISE passe en vitrine. Sinon une traduction mieux classee prendrait la
+   * place de l'edition que l'utilisateur lit.
+   */
+  const francaises = groupe.filter((r) => /^fr/i.test(String(r.langue || '')));
+  const candidates = francaises.length > 0 && francaises.length < groupe.length ? francaises : groupe;
+  let base = candidates[0];
   let meilleur = scorePertinence(base, requete);
-  groupe.slice(1).forEach((r) => {
+  candidates.slice(1).forEach((r) => {
     const note = scorePertinence(r, requete);
     if (note > meilleur) { base = r; meilleur = note; }
   });
 
   const fondu = { ...base, clesSource: [...new Set(groupe.flatMap(clesDe))] };
+  // La fiche retenue peut ne pas porter l'oeuvre d'Open Library que porte une
+  // autre du groupe : on la garde, pour que la refonte d'une page suivante relie
+  // encore cette carte a ses traductions.
+  if (!fondu.oeuvreOL) {
+    const porteuse = groupe.find((r) => r.oeuvreOL);
+    if (porteuse) fondu.oeuvreOL = porteuse.oeuvreOL;
+  }
 
   // On ne REMPLACE jamais ce que la fiche retenue sait deja : on ne comble que
   // ses trous, avec la premiere fiche du groupe qui a la reponse.
@@ -540,7 +916,7 @@ export async function rechercher(texte, mode, page = 0, auteur = '') {
    */
   const promesseNotoriete = (mode === 'titre' && requete) ? notorieteDe(requete) : null;
 
-  const brut = await rechercherBrut(texte, mode, page, auteur);
+  const brut = await rechercherBrut(texte, mode, page, auteur, promesseNotoriete);
 
   /*
    * TOUT CE QUI SE DECIDE SE DECIDE ICI, A LA SORTIE, ET RIEN N'EST ARCHIVE
@@ -578,10 +954,21 @@ export async function rechercher(texte, mode, page = 0, auteur = '') {
    * compte, l'ecran concluait « plus rien a charger » et la saga suivante
    * redevenait hors de portee, exactement le bug du retour d'usage 101.
    */
+  // Etape 5 : les traductions qu'Open Library rattache a la meme oeuvre se
+  // fondent ensemble. Mode Titre seulement, comme la notoriete.
+  const budgetOL = nouveauBudgetOL();
+  const rattachees = mode === 'titre' ? await rattacherAuxOeuvres(classes, texte, page === 0, budgetOL) : classes;
+  const cartes = fusionnerDoublonsAffichage(rattachees, texte);
+
+  /*
+   * Tranche 33 : le numero de tome qu'aucun titre n'ecrit (Harry Potter) est
+   * rattrape par Open Library, mode Titre seulement — c'est le seul mode ou
+   * une saga a du sens. Mode Auteur et ISBN : inchange.
+   */
   return {
     ...brut,
     nbSource: brut.resultats.length,
-    resultats: fusionnerDoublonsAffichage(classes, texte),
+    resultats: mode === 'titre' ? await enrichirTomesConnus(cartes, texte, budgetOL) : cartes,
   };
 }
 
@@ -613,7 +1000,7 @@ export async function viderCacheRecherche() {
   }
 }
 
-async function rechercherBrut(texte, mode, page = 0, auteur = '') {
+async function rechercherBrut(texte, mode, page = 0, auteur = '', promesseNotoriete = null) {
   const requete = texte.trim();
   if (!requete) return { resultats: [], ancien: false, pose: null };
 
@@ -724,18 +1111,327 @@ async function rechercherBrut(texte, mode, page = 0, auteur = '') {
    * Et tout cela AVANT l'archivage : la recherche rejouee demain sortira
    * completee, sans rappeler personne.
    */
-  const completes = completerDepuisBnf(resultats, promesseBnf ? await promesseBnf : []);
+  /*
+   * UN « 0 RESULTAT » VAUT UNE PANNE (mission « recherche satisfaisante »,
+   * etape 1). Google peut repondre 200 avec zero volume, sans erreur : mesure
+   * du 2026-10-04, c'est ce qui rendait vides germinal, 1984, l'anomalie,
+   * l'elegance du herisson et les recherches par auteur. Le filet BnF ci-dessus
+   * ne partait que sur une erreur, donc l'ecran restait vide.
+   *
+   * Chaine de repli, 1re page seulement (une page suivante vide, c'est la fin
+   * des resultats) : la question posee librement a Google, puis la BnF, deja
+   * partie en parallele. L'ISBN a sa propre chaine dans `interroger`.
+   *
+   * Un resultat de repli n'est NI mis en cache NI archive : si Google redevient
+   * normal, la recherche suivante doit lui redemander la bonne reponse plutot
+   * que servir pendant 24 h la reponse bruyante.
+   */
+  let repli = false;
+  let depuisBnf = false;
+  if (resultats.length === 0 && page === 0 && mode !== 'isbn') {
+    repli = true;
+    try {
+      resultats = await google.rechercherLibre(requete, auteur);
+    } catch {
+      resultats = [];   // Google est muet ou en panne : la BnF est la suivante
+    }
+    if (resultats.length === 0) {
+      const secours = promesseBnf ? await promesseBnf : [];
+      if (secours.length) { resultats = secours; depuisBnf = true; }
+    }
+  }
+
+  /*
+   * COMPLETER PAR L'AUTEUR (mission « recherche satisfaisante », etape 3).
+   * Mesure du 2026-10-04 : `intitle:` seul laisse le livre cherche hors de la
+   * 1re page (Mauvignier pour « la maison vide », les tomes 1, 13, 14 et 15 du
+   * Trone de fer, les editions francaises de 1984) alors que Google les a des
+   * qu'on lui donne l'auteur. Archive avec le reste : c'est du brut de Google.
+   */
+  if (mode === 'titre' && page === 0 && !String(auteur || '').trim()
+    && promesseNotoriete && !depuisBnf) {
+    resultats = await completerParAuteurs(requete, resultats, promesseNotoriete);
+  }
+
+  const completes = depuisBnf
+    ? resultats   // ce sont deja des notices BnF : rien a completer
+    : completerDepuisBnf(resultats, promesseBnf ? await promesseBnf : []);
   /*
    * On archive du BRUT : ni notoriete, ni fusion (M2). Elles se recalculent a
    * l'affichage, dans `rechercher`. Voir le commentaire la-bas.
    */
   const illustres = completes.map(avecCouvertureDeRepli);
   const pose = Date.now();
+  if (repli) {
+    if (illustres.length) void noterDansHistorique(requete, mode);
+    return { resultats: illustres, ancien: false, pose };
+  }
   cacheRecherche.set(cle, { pose, resultats: illustres });
   // Volontairement non attendu : archiver ne doit pas retarder l'affichage.
   if (illustres.length) void ecrireArchive(cle, pose, illustres);
   if (illustres.length && page === 0) void noterDansHistorique(requete, mode);
   return { resultats: illustres, ancien: false, pose };
+}
+
+// ---------------------------------------------------------------------------
+// COMPLETER PAR L'AUTEUR (mission « recherche satisfaisante », etape 3)
+// ---------------------------------------------------------------------------
+
+/** Plafond d'auteurs interroges en plus : chacun coute une requete Google (§4.1). */
+export const MAX_AUTEURS_COMPLEMENT = 3;
+
+const ARTICLES_DE_TETE = new Set(['a', 'an', 'the', 'le', 'la', 'les', 'l', 'un', 'une', 'des']);
+
+/** Un titre reduit pour savoir s'il est « exactement » la recherche : sans accent,
+ * sans ponctuation, sans article de tete. */
+function titreExact(texte) {
+  const mots = normaliser(texte, false).split('-').filter(Boolean);
+  return (mots.length > 1 && ARTICLES_DE_TETE.has(mots[0]) ? mots.slice(1) : mots).join('-');
+}
+
+/**
+ * Les auteurs a qui poser une question de plus a Google, 3 au plus :
+ *  1. ceux des oeuvres Open Library dont le titre est EXACTEMENT la recherche,
+ *     les plus lues d'abord (« la maison vide » : Mauvignier, Gutman, Bernard) ;
+ *  2. a defaut de place, l'auteur arrive EN TETE chez Open Library — Open
+ *     Library ecrit souvent le titre autrement (« Nineteen Eighty-Four »,
+ *     « A Game of Thrones »), l'auteur, lui, traverse les traductions.
+ *
+ * @param {string} requete
+ * @param {Array<{titre: string, auteurs: string[], lecteurs: number}>} oeuvres
+ * @returns {string[]} noms tels qu'Open Library les ecrit
+ */
+export function auteursACompleter(requete, oeuvres) {
+  const liste = oeuvres || [];
+  const cherche = titreExact(requete);
+  if (!cherche || liste.length === 0) return [];
+
+  const exacts = liste
+    .filter((o) => titreExact(o.titre) === cherche)
+    .sort((a, b) => (b.lecteurs || 0) - (a.lecteurs || 0));
+
+  const noms = [];
+  const profils = [];
+  [...exacts, liste[0]].forEach((o) => {
+    const nom = (o.auteurs || [])[0];
+    const profil = nom ? profilAuteur(nom) : null;
+    if (!profil || noms.length >= MAX_AUTEURS_COMPLEMENT) return;
+    if (profils.some((p) => memeAuteur(p, profil))) return;
+    profils.push(profil);
+    noms.push(nom);
+  });
+  return noms;
+}
+
+/**
+ * Ajoute aux resultats de Google ceux de « titre + auteur », sans doublon. Ne
+ * rejette jamais : une question en echec est simplement ignoree, et sans
+ * Open Library on n'ajoute rien — la recherche reste ce qu'elle etait.
+ */
+async function completerParAuteurs(requete, resultats, promesseNotoriete) {
+  let oeuvres = [];
+  try { oeuvres = await promesseNotoriete; } catch { /* aucune notoriete : rien a completer */ }
+  const noms = auteursACompleter(requete, oeuvres);
+  if (noms.length === 0) return resultats;
+
+  const lots = await Promise.all(noms.map((nom) => google.rechercherLibre(requete, nom).catch(() => [])));
+  const vus = new Set(resultats.map((r) => r.cleSource));
+  const ajouts = [];
+  lots.flat().forEach((r) => {
+    if (vus.has(r.cleSource)) return;
+    vus.add(r.cleSource);
+    ajouts.push(r);
+  });
+  return [...resultats, ...ajouts];
+}
+
+// ---------------------------------------------------------------------------
+// RATTACHER LES FICHES A LEUR OEUVRE OPEN LIBRARY (mission « recherche
+// satisfaisante », etape 5, decision 2)
+// ---------------------------------------------------------------------------
+
+/*
+ * Mesure du 2026-10-04 : Open Library rattache a la meme oeuvre l'edition
+ * anglaise et l'edition francaise des tomes celebres de Harry Potter (12 ISBN
+ * sur 14 reconnus), mais presque rien des livres recents (le zoo de Dicker,
+ * l'elegance du herisson, la Passe-miroir : 1 a 2 ISBN reconnus sur 2 a 8). Et
+ * elle est lente : 1 a 6 s par ISBN quand on en interroge plusieurs d'un coup.
+ * D'ou : un plafond, une limite de temps, et une memoire des reponses.
+ */
+const MAX_RECHERCHES_OEUVRE = 4;      // etape 8 : la part du rattachement des traductions
+const BUDGET_OEUVRES_MS = 3500;       // ce que la recherche accepte d'attendre
+const DELAI_FICHE_OL_MS = 12000;      // ce qu'une requete a le droit de durer, elle
+                                      // continue en fond et sa reponse sert la fois suivante
+const PREFIXE_IDENTITE_ISBN = 'oeuvre-isbn:';
+const VIE_IDENTITE_CONNUE_MS = 30 * 24 * 60 * 60 * 1000;
+const VIE_IDENTITE_INCONNUE_MS = 7 * 24 * 60 * 60 * 1000;
+
+const identitesOL = new Map();   // isbn -> { pose, identite | null }
+const identitesEnCours = new Map();
+
+function entreeFraiche(entree) {
+  if (!entree) return false;
+  const vie = entree.identite ? VIE_IDENTITE_CONNUE_MS : VIE_IDENTITE_INCONNUE_MS;
+  return Date.now() - entree.pose < vie;
+}
+
+async function chargerIdentiteIsbn(isbn) {
+  if (entreeFraiche(identitesOL.get(isbn))) return;
+  try {
+    const { get } = await import('idb-keyval');
+    const entree = await get(PREFIXE_IDENTITE_ISBN + isbn);
+    if (entreeFraiche(entree)) identitesOL.set(isbn, entree);
+  } catch { /* IndexedDB indisponible : on demandera a la source */ }
+}
+
+/*
+ * BUDGET DE REQUETES OPEN LIBRARY PAR RECHERCHE (mission « recherche
+ * satisfaisante », etape 8, volet A). Mesure du 2026-10-04 : 290 requetes en 4
+ * minutes (5 a 27 par recherche, 16 en moyenne) et Open Library qui cesse de
+ * repondre deux fois dans la soiree. La cause : le calcul des tomes de saga se
+ * declenchait des qu'un auteur avait trois cartes sans numero — ce que la
+ * completion par l'auteur (etape 3) rend presque systematique — et interrogeait
+ * Open Library pour CHACUNE (une requete par edition, une par oeuvre).
+ *
+ * Dix requetes RESEAU au plus par recherche, notoriete non comprise. Ce qui est
+ * deja en memoire ne coute rien : une saga se complete donc recherche apres
+ * recherche, au lieu de tout payer d'un coup.
+ */
+export const BUDGET_REQUETES_OL = 10;
+
+function nouveauBudgetOL() {
+  return { reste: BUDGET_REQUETES_OL };
+}
+
+/** Prend une unite du budget. Sans budget (appel isole), tout est permis. */
+function depenserBudgetOL(budget) {
+  if (!budget) return true;
+  if (budget.reste <= 0) return false;
+  budget.reste -= 1;
+  return true;
+}
+
+// Premiere publication d'une oeuvre : meme memoire que l'identite d'une edition.
+const PREFIXE_PUBLICATION = 'publication-oeuvre:';
+const publicationsOL = new Map();   // oeuvreId -> { pose, annee | null }
+const publicationsEnCours = new Map();
+
+async function publicationOLMemorisee(oeuvreId, budgetMs, budget = null) {
+  let entree = publicationsOL.get(oeuvreId);
+  if (!entreeFraiche({ pose: entree?.pose, identite: entree })) {
+    entree = null;
+    try {
+      const { get } = await import('idb-keyval');
+      const lue = await get(PREFIXE_PUBLICATION + oeuvreId);
+      if (lue && entreeFraiche({ pose: lue.pose, identite: lue })) { publicationsOL.set(oeuvreId, lue); entree = lue; }
+    } catch { /* IndexedDB indisponible */ }
+  }
+  if (entree) return entree.annee;
+
+  if (!publicationsEnCours.has(oeuvreId)) {
+    if (!depenserBudgetOL(budget)) return undefined;
+    const requete = ol.premierePublicationParOeuvre(oeuvreId, budgetMs)
+      .then(async (annee) => {
+        const nouvelle = { pose: Date.now(), annee: annee ?? null };
+        publicationsOL.set(oeuvreId, nouvelle);
+        try {
+          const { set } = await import('idb-keyval');
+          await set(PREFIXE_PUBLICATION + oeuvreId, nouvelle);
+        } catch { /* ecrire la memoire n'est jamais une raison d'echouer */ }
+        return nouvelle.annee;
+      })
+      .finally(() => publicationsEnCours.delete(oeuvreId));
+    publicationsEnCours.set(oeuvreId, requete);
+  }
+  return publicationsEnCours.get(oeuvreId);
+}
+
+/**
+ * L'identite Open Library d'une edition (oeuvre, serie, tome), MEMORISEE : en
+ * memoire, puis sur l'appareil (30 jours si connue, 7 jours si inconnue). Une
+ * panne ou un delai depasse REJETTENT et ne sont jamais memorises — seule une
+ * reponse d'Open Library l'est, « je ne connais pas cet ISBN » comprise.
+ */
+export async function identiteOLMemorisee(isbn, budgetMs, budget = null) {
+  await chargerIdentiteIsbn(isbn);
+  const connue = identitesOL.get(isbn);
+  if (entreeFraiche(connue)) return connue.identite;
+
+  if (!identitesEnCours.has(isbn)) {
+    // Etape 8 : une reponse deja en memoire est GRATUITE, une requete reseau
+    // coute une unite du budget de la recherche. Budget epuise : on ne demande pas.
+    if (!depenserBudgetOL(budget)) return undefined;
+    const requete = ol.identiteParIsbn(isbn, budgetMs)
+      .then(async (identite) => {
+        const entree = { pose: Date.now(), identite: identite || null };
+        identitesOL.set(isbn, entree);
+        try {
+          const { set } = await import('idb-keyval');
+          await set(PREFIXE_IDENTITE_ISBN + isbn, entree);
+        } catch { /* ecrire la memoire n'est jamais une raison d'echouer */ }
+        return entree.identite;
+      })
+      .finally(() => identitesEnCours.delete(isbn));
+    identitesEnCours.set(isbn, requete);
+  }
+  return identitesEnCours.get(isbn);
+}
+
+/**
+ * Attache `oeuvreOL` aux fiches dont Open Library connait l'oeuvre. Ne sert que
+ * s'il y a de quoi fusionner : un meme auteur dont les fiches melangent plusieurs
+ * LANGUES. Sinon, aucun appel. Ne rejette jamais.
+ *
+ * @param {ResultatRecherche[]} fiches avant fusion
+ * @param {string} requete
+ * @param {boolean} autoriserReseau false pour les pages suivantes : on n'y lit que
+ *   ce que la memoire connait deja
+ */
+async function rattacherAuxOeuvres(fiches, requete, autoriserReseau, budget = null) {
+  const liste = fiches || [];
+  try {
+    const langues = new Map();
+    liste.forEach((r) => {
+      const nom = Array.isArray(r.auteurs) ? r.auteurs[0] : r.auteurs;
+      const profil = nom ? profilAuteur(nom) : null;
+      const langue = String(r.langue || '').slice(0, 2).toLowerCase();
+      if (!profil || !langue) return;
+      if (!langues.has(profil.famille)) langues.set(profil.famille, new Set());
+      langues.get(profil.famille).add(langue);
+    });
+    const familles = new Set([...langues].filter(([, s]) => s.size >= 2).map(([f]) => f));
+    if (familles.size === 0) return liste;
+
+    const candidates = liste.filter((r) => {
+      const nom = Array.isArray(r.auteurs) ? r.auteurs[0] : r.auteurs;
+      const profil = nom ? profilAuteur(nom) : null;
+      return profil && familles.has(profil.famille) && cleIsbn(r.isbn13 || r.isbn10);
+    });
+    const isbnDe = (r) => cleIsbn(r.isbn13 || r.isbn10);
+    const uniques = [...new Map(candidates.map((r) => [isbnDe(r), r])).entries()]
+      .sort((a, b) => scorePertinence(b[1], requete) - scorePertinence(a[1], requete))
+      .map(([isbn]) => isbn);
+
+    await Promise.all(uniques.map(chargerIdentiteIsbn));
+    const inconnus = uniques.filter((isbn) => !entreeFraiche(identitesOL.get(isbn)));
+
+    if (autoriserReseau && inconnus.length > 0) {
+      const attente = Promise.all(inconnus.slice(0, MAX_RECHERCHES_OEUVRE)
+        .map((isbn) => identiteOLMemorisee(isbn, DELAI_FICHE_OL_MS, budget).catch(() => null)));
+      let minuteur;
+      await Promise.race([attente, new Promise((fin) => { minuteur = setTimeout(fin, BUDGET_OEUVRES_MS); })]);
+      clearTimeout(minuteur);
+    }
+
+    return liste.map((r) => {
+      const isbn = isbnDe(r);
+      const entree = isbn ? identitesOL.get(isbn) : null;
+      const oeuvre = entree && entreeFraiche(entree) && entree.identite ? entree.identite.oeuvreId : null;
+      return oeuvre ? { ...r, oeuvreOL: oeuvre } : r;
+    });
+  } catch {
+    return liste;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -800,26 +1496,20 @@ const CHAMPS_DE_LA_BNF = ['isbn13', 'isbn10', 'editeur', 'annee', 'datePublicati
 export function completerDepuisBnf(resultats, notices) {
   if (!notices || notices.length === 0) return resultats || [];
 
-  const parEmpreinte = new Map();
-  notices.forEach((n) => {
-    const auteur = Array.isArray(n.auteurs) ? n.auteurs[0] : n.auteurs;
-    if (!n.titre || !auteur) return;
-    // Meme cle lache qu'a la fusion : la BnF ecrit « Zola, Emile » la ou
-    // Google ecrit « Emile Zola », et l'ordre du nom ne doit pas empecher le
-    // rapprochement.
-    const cle = cleRegroupement(n.titre, n.auteurs, n.sousTitre);
-    if (!cle) return;
-    // La PREMIERE notice gagne : la BnF rend ses editions de la plus proche a
-    // la plus lointaine, et prendre la derniere donnerait l'edition la plus
-    // obscure du lot.
-    if (!parEmpreinte.has(cle)) parEmpreinte.set(cle, n);
-  });
+  // Meme definition de « meme livre » qu'a la fusion (`memeLivre`) : la BnF ecrit
+  // « Zola, Emile » la ou Google ecrit « Emile Zola », et l'ordre du nom ne doit
+  // pas empecher le rapprochement. La PREMIERE notice qui correspond gagne : la
+  // BnF rend ses editions de la plus proche a la plus lointaine, et prendre la
+  // derniere donnerait l'edition la plus obscure du lot.
+  const identites = notices
+    .map((n) => ({ notice: n, identite: identiteDeLivre(n) }))
+    .filter((x) => x.identite);
 
   return (resultats || []).map((r) => {
-    const auteur = Array.isArray(r.auteurs) ? r.auteurs[0] : r.auteurs;
-    if (!r.titre || !auteur) return r;
-    const cleR = cleRegroupement(r.titre, r.auteurs, r.sousTitre);
-    const notice = cleR ? parEmpreinte.get(cleR) : null;
+    const identiteR = identiteDeLivre(r);
+    if (!identiteR) return r;
+    const trouve = identites.find((x) => memeLivre(x.identite, identiteR));
+    const notice = trouve ? trouve.notice : null;
     if (!notice) return r;
 
     // Meme regle qu'a la fusion : on comble, on n'ecrase jamais. Google reste

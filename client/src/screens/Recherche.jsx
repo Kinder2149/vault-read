@@ -17,7 +17,7 @@ import {
 } from '../api.js';
 import { LIBELLES, STATUTS, classeStatut, ageLisible } from '../status.js';
 import { grouperParAuteur } from '../auteurs.js';
-import { organiserLEcran, serieAConfirmer, trierResultats, TRIS } from '../tomes.js';
+import { organiserLEcran, separerLePrincipal, serieAConfirmer, trierResultats, TRIS } from '../tomes.js';
 import { notify } from '../notify.js';
 import SearchBar from '../components/SearchBar.jsx';
 import BookCard from '../components/BookCard.jsx';
@@ -102,11 +102,24 @@ export default function Recherche({ actif = true, editionsSuivies, onSuivre, onC
    * (correction 2). Chaque serie porte son nom et se place selon sa
    * pertinence : elle ne passe plus devant tout par principe.
    */
+  /*
+   * LE REPLI « VOIR AUSSI » (etape 9). En mode Titre et tri par pertinence
+   * seulement : le livre cherche reste visible, et trois « autres » au plus ;
+   * les autres livres de l'auteur et les editions en d'autres langues vont sous
+   * un repli. Rien n'est supprime. Voir `separerLePrincipal`.
+   */
+  const partage = useMemo(
+    () => (mode === 'titre' && tri === 'pertinence'
+      ? separerLePrincipal(triees, derniereRequete)
+      : { principaux: triees, replies: [] }),
+    [mode, tri, triees, derniereRequete],
+  );
+
   const blocs = useMemo(
-    () => (mode !== 'auteur' && triees.length > 0
-      ? organiserLEcran(triees, derniereRequete)
-      : [{ type: 'livres', livres: triees }]),
-    [mode, triees, derniereRequete],
+    () => (mode !== 'auteur' && partage.principaux.length > 0
+      ? organiserLEcran(partage.principaux, derniereRequete)
+      : [{ type: 'livres', livres: partage.principaux }]),
+    [mode, partage, derniereRequete],
   );
 
   const groupes = useMemo(
@@ -672,21 +685,39 @@ export default function Recherche({ actif = true, editionsSuivies, onSuivre, onC
           plus par un « La serie, dans l'ordre » qui melangeait des cycles sans
           rapport. Les livres isoles qui se suivent forment une seule grille.
         */
-        blocs.map((b, i) => (b.type === 'serie' ? (
-          <div className="groupe-auteur" key={b.cle}>
-            <h2 className="soustitre soustitre--serre">
-              {b.nom}
-              <span className="groupe-auteur__compte">{b.tomes.length} tomes</span>
-            </h2>
-            <div className="grille">
-              {b.tomes.map((r) => carteResultat(r, `tome ${r.tome}`))}
+        <>
+          {blocs.map((b, i) => (b.type === 'serie' ? (
+            <div className="groupe-auteur" key={b.cle}>
+              <h2 className="soustitre soustitre--serre">
+                {b.nom}
+                <span className="groupe-auteur__compte">{b.tomes.length} tomes</span>
+              </h2>
+              <div className="grille">
+                {b.tomes.map((r) => carteResultat(r, r.tomeDeduit ? `tome ${r.tome} (déduit)` : `tome ${r.tome}`))}
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="grille" key={`livres-${i}`}>
-            {b.livres.map((r) => carteResultat(r))}
-          </div>
-        )))
+          ) : (
+            <div className="grille" key={`livres-${i}`}>
+              {b.livres.map((r) => carteResultat(r))}
+            </div>
+          )))}
+          {partage.replies.length > 0 ? (
+            /*
+              « VOIR AUSSI » (etape 9) : les autres livres de l'auteur et les
+              editions en d'autres langues. Un element natif <details> : il
+              marche sans etat React, au clavier et sur Android.
+            */
+            <details className="voir-aussi">
+              <summary className="voir-aussi__titre">
+                Voir aussi ({partage.replies.length})
+                <span className="voir-aussi__aide"> — autres livres de l’auteur et autres langues</span>
+              </summary>
+              <div className="grille">
+                {partage.replies.map((r) => carteResultat(r))}
+              </div>
+            </details>
+          ) : null}
+        </>
       ) : null}
 
       {chargeSuite && <p className="hint">Encore quelques livres…</p>}
