@@ -66,7 +66,7 @@ export default function CatalogueApi() {
       <p className="carte__detail">
         Notre propre catalogue range les sagas dans l’ordre et associe chaque couverture à la bonne édition.
         Désactivé, ou s’il ne répond pas, la recherche utilise Google Books, Open Library et la BnF comme avant.
-        Cela ne concerne que la recherche par titre.
+        Il sert la recherche par titre, par auteur et le scan d’ISBN.
       </p>
     </div>
   );

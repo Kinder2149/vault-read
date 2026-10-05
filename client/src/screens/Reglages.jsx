@@ -12,6 +12,7 @@ import Icon from '../components/Icon.jsx';
 import ProfileSelector from '../components/ProfileSelector.jsx';
 import CacheRecherche from '../components/CacheRecherche.jsx';
 import CatalogueApi from '../components/CatalogueApi.jsx';
+import SourcesDonnees from '../components/SourcesDonnees.jsx';
 
 export default function Reglages({
   theme, basculerTheme, bibliotheque, quota, etat,
@@ -73,6 +74,8 @@ export default function Reglages({
         <CatalogueApi />
 
         <CacheRecherche />
+
+        <SourcesDonnees />
 
         <div className="carte">
           <h2 className="carte__titre">Base de données</h2>

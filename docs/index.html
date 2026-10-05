@@ -4,7 +4,8 @@
   Destinée à être publiée sur GitHub Pages : le Play Store exige une URL
   publique et permanente, même pour une application qui ne collecte rien.
   Elle décrit exactement ce que fait l'application — ni plus, ni moins :
-  tout reste sur l'appareil, trois services publics sont interrogés sans
+  tout reste sur l'appareil ; la recherche de livres passe par notre
+  catalogue Vault Books, puis par des services publics, sans aucun
   identifiant d'utilisateur.
 -->
 <html lang="fr">
@@ -48,7 +49,7 @@
   </head>
   <body>
     <h1>Vault Read — Politique de confidentialité</h1>
-    <p class="date">Dernière mise à jour : 19 septembre 2026</p>
+    <p class="date">Dernière mise à jour : 5 octobre 2026</p>
 
     <div class="resume">
       <strong>En une phrase :</strong> Vault Read ne collecte aucune donnée
@@ -72,8 +73,52 @@
     <h2>Ce que l’application envoie, et à qui</h2>
     <p>
       Pour trouver des livres et récupérer leurs couvertures et leurs résumés,
-      l’application interroge trois services publics :
+      l’application interroge d’abord <strong>notre catalogue Vault Books</strong>,
+      puis, s’il ne répond pas ou si vous l’avez désactivé (Réglages), trois
+      services publics.
     </p>
+
+    <h3>Notre catalogue Vault Books</h3>
+    <p>
+      C’est un petit service que nous exploitons nous-mêmes. Il reçoit
+      <strong>le terme que vous cherchez</strong> (titre ou auteur), la langue
+      du catalogue choisie, ou l’<strong>ISBN</strong> que vous scannez. Pour
+      répondre, il interroge à son tour
+      <a href="https://hardcover.app">Hardcover</a> (données de livres et de
+      sagas), la BnF et Open Library — avec ce même terme, sans rien d’autre.
+    </p>
+    <ul>
+      <li>
+        <strong>Hébergement :</strong> le service tourne chez Vercel (région de
+        Paris) et garde ses réponses en mémoire chez Supabase, pour répondre
+        plus vite et ménager les services qu’il interroge. Ces réponses sont
+        effacées au plus tard après 60 jours ; la clé qui les range contient le terme
+        cherché, mais <strong>rien ne le relie à une personne</strong> ou à un
+        appareil.
+      </li>
+      <li>
+        <strong>Journal :</strong> pour surveiller le bon fonctionnement, chaque
+        appel inscrit seulement son type (recherche, saga, ISBN…), son statut,
+        sa durée, la langue et l’état du cache, pendant <strong>30 jours</strong>.
+        Il ne contient <strong>ni le texte cherché, ni l’ISBN, ni adresse IP,
+        ni identifiant</strong>.
+      </li>
+      <li>
+        <strong>Adresse IP :</strong> nous ne l’enregistrons pas. Elle est
+        visible de l’hébergeur (Vercel), qui peut en garder une trace technique
+        selon
+        <a href="https://vercel.com/legal/privacy-policy">sa propre politique</a>,
+        et le service la lit brièvement, en mémoire seulement, pour limiter les
+        abus (90 appels par minute).
+      </li>
+      <li>
+        <strong>Clé d’application :</strong> l’application envoie une clé
+        identique pour toutes les installations. Elle sert à écarter les
+        appels qui ne viennent pas de l’application ; elle ne vous identifie pas.
+      </li>
+    </ul>
+
+    <h3>Les services publics</h3>
     <ul>
       <li>
         <strong>Google Books</strong> — reçoit les mots que vous tapez dans le
@@ -102,6 +147,24 @@
       ni compte, ni numéro d’appareil, ni contenu de votre bibliothèque. Elles ne
       transportent que le terme cherché. Comme pour toute requête sur Internet,
       votre adresse IP est visible du service interrogé.
+    </p>
+
+    <h2>Les couvertures</h2>
+    <p>
+      Les images de couverture ne sont pas copiées par nos soins : votre
+      téléphone les télécharge directement chez celui qui les héberge
+      (Hardcover, Open Library, Google Books ou la BnF), qui voit alors votre
+      adresse IP comme pour n’importe quelle image sur Internet. Si vous
+      souhaitez qu’une image soit retirée,
+      <a href="retrait-images.html">voir la procédure de retrait</a>.
+    </p>
+
+    <h2>Données des services tiers</h2>
+    <p>
+      Les informations sur les livres viennent de sources tierces :
+      <a href="https://hardcover.app">Hardcover</a>, la Bibliothèque nationale
+      de France, Open Library (Internet Archive) et Google Books. Vault Read
+      n’est affilié à aucune d’elles.
     </p>
 
     <h2>La caméra</h2>

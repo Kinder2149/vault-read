@@ -2703,3 +2703,6 @@ bSource: 0; auteur inconnu ou panne : repli Google. /v1/isbn fournit le résumé
 
 **Phase 3 (essai et solidité).** Les recherches du catalogue (titre, auteur) sont archivées sous une clé qui porte la langue (b:<langue>:<mode>:<texte>) et ne servent que si le catalogue ET le chemin historique sont tombés (`ancien: true`, `nbSource: 0`). Famille 17 : les réponses réelles du service (copiées de vault-books-api/contrat/ par `npm run contrat -- --copier`) sont le contrat des deux dépôts. Famille 18 : hors ligne. 380 vérifications.
 
+
+**Phase 4 (conformité).** Carte « Sources des données » dans Réglages (Hardcover cité seulement si le catalogue est actif) ; politique de confidentialité réécrite (docs/index.html) et page de retrait d'images (docs/retrait-images.html), publiées à la fusion. Le texte « Cela ne concerne que le titre » de la carte Catalogue est corrigé (titre, auteur, ISBN). 384 vérifications (famille 19).
+
