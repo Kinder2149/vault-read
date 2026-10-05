@@ -2706,3 +2706,6 @@ bSource: 0; auteur inconnu ou panne : repli Google. /v1/isbn fournit le résumé
 
 **Phase 4 (conformité).** Carte « Sources des données » dans Réglages (Hardcover cité seulement si le catalogue est actif) ; politique de confidentialité réécrite (docs/index.html) et page de retrait d'images (docs/retrait-images.html), publiées à la fusion. Le texte « Cela ne concerne que le titre » de la carte Catalogue est corrigé (titre, auteur, ISBN). 384 vérifications (famille 19).
 
+
+**Reprise depuis un autre poste (2026-10-05).** Le fichier de référence est `vault-books-api/PROJET_CONTEXTE.md` (§6 : installation, fichiers `.env` à recopier, vérifications, règles). Côté Vault Read : branche de travail `feature/catalogue-api` (jamais `main` sans l'accord de Kinder), 384 vérifications (`cd client && npx vitest run`), fichier `client/.env` (`VITE_VAULT_API_URL`, `VITE_VAULT_API_KEY`) à recopier du premier poste. Reste : essai sur téléphone, validation des pages publiques `docs/index.html` et `docs/retrait-images.html`, fusion sur accord, suggestions et « tome suivant » sans Google, retrait de l'ancien code après 2 à 4 semaines d'usage.
+
