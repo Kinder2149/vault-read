@@ -1027,6 +1027,82 @@ posé sur `<html>` avant le rendu React · icônes SVG maison sans émoji · tex
 d'état vide qui **disent quoi faire ensuite** plutôt que de constater le vide ·
 client autonome sans serveur, sans Docker, sans proxy.
 
+**Mission « recherche satisfaisante » (option A : on garde Google, Open Library et
+la BnF) — figée le 2026-10-04, validée par Kinder.**
+
+*Pourquoi cette mission.* Mesure du 2026-10-04 sur 20 recherches (les 8 du banc,
+12 nouvelles) : 3 recherches satisfaisantes sur 20, 1 seule impossible à rendre
+satisfaisante (un ISBN absent de toutes les sources consultées). Règle d'arrêt :
+moins de 4 impossibles sur 20, donc on reste sur A/B/C ; l'option D (catalogue
+maison) n'est pas ouverte. Le critère « satisfaisante » est : bon livre en 1re
+place · aucun vrai livre perdu · au plus 3 parasites dans les 10 premiers · aucun
+doublon de la même œuvre · même résultat à chaque lancement. Ce jeu de 20 est
+l'étalon, refait à la fin de la mission.
+
+*Les six décisions, à ne pas rouvrir :*
+1. **Écrans vides.** Un « 0 résultat » de Google vaut une panne. Chaîne de repli :
+   Google avec la requête actuelle, puis Google avec le titre tapé tel quel, puis
+   la BnF, puis « aucun résultat ». (Constat : Google a rendu 0 résultat sans
+   erreur pour `inauthor:`, `isbn:` et certains `intitle:`, et le relais BnF ne
+   partait que sur erreur.)
+2. **Traductions.** Une carte par œuvre, l'édition française en vitrine. On ne
+   fusionne que si Open Library confirme la même œuvre ; sinon cartes séparées.
+3. **Format** (ebook, poche, grand format) : hors périmètre.
+4. **Contrôle.** Pas de nouvelle mesure avant le plan ; mesure complète des 20
+   recherches à la fin de la mission, comme contrôle de clôture.
+5. **Livres perdus.** Compléter par l'auteur : pour les œuvres d'Open Library au
+   titre exact, une requête Google titre + auteur, 3 auteurs au plus. Un livre au
+   titre exact n'est jamais écarté ; le nom d'auteur se compare avec tolérance
+   (accents, prénoms composés).
+6. **Doublons et parasites.** Une seule définition de « même livre » et une seule
+   de « livre cherché ». Les parasites (ouvrages sur l'auteur, autres séries ou
+   livres du même auteur) descendent dans le classement sans disparaître.
+   Coffrets et intégrales restent des livres à part (tranche 31).
+
+*Plan en 7 étapes, validé par Kinder le 2026-10-04.* Une étape à la fois, close
+par la validation de Kinder avant la suivante.
+
+| Étape | Contenu | Dépend de |
+|---|---|---|
+| 1. Fini les écrans vides | Décision 1 : « 0 résultat » = panne, chaîne de repli | — |
+| 2. Le filtre ne perd plus de vrais livres | Décision 5, 1re partie : titre exact jamais écarté, auteur comparé avec tolérance | — |
+| 3. Compléter par l'auteur | Décision 5, 2e partie : requête titre + auteur, 3 auteurs au plus | 2 |
+| 4. Un seul « même livre » | Décision 6, 1re partie : une définition au lieu de trois | — |
+| 5. Les traductions fusionnent | Décision 2 : une carte par œuvre, si Open Library confirme | 4 |
+| 6. Les parasites descendent | Décision 6, 2e partie : un seul « livre cherché » | 3 |
+| 7. Contrôle de clôture | Décision 4 : mesure des 20 recherches, rapport avant/après | 1 à 6 |
+
+*Cas connu non couvert :* le roman original *Les Fourmis* (Werber) n'apparaît pas
+en 1re page de Google ; la BnF avec titre + auteur le donne en premier. L'étape 7
+dira si la recherche reste insatisfaisante ; une étape de plus serait alors à
+décider par Kinder.
+
+*Phase 5 (critère de validation par étape) :* écrit étape par étape, avant tout
+code, par Kinder.
+
+*Suite du contrôle de clôture du 2026-10-04 (étapes 1 à 6 validées).* Résultat :
+**3 recherches satisfaisantes sur 20, comme avant** — mais les écrans vides passent
+de 6 à 0 et les vrais livres perdus de 9 recherches à 1 ; le bruit et les doublons
+augmentent (traductions, autres livres de l'auteur). Règle d'arrêt rejouée : 1
+recherche impossible sur 20 (un ISBN absent partout), donc on reste sur l'option A.
+Deux risques mesurés : une recherche envoyait 5 à 27 requêtes à Open Library (290 en
+4 minutes), qui a cessé de répondre deux fois dans la soirée ; la 1re recherche d'une
+saga prend jusqu'à 16 secondes. Plan décidé par Kinder :
+- **Étape 8** (volets A et B) : budget de 10 requêtes Open Library par recherche
+  (hors notoriété), calcul des tomes limité au livre cherché ; le livre de
+  référence est celui de l'auteur qu'Open Library désigne, le rang chez Open
+  Library passe avant la note dans un niveau.
+- **Étape 9** (à cadrer) : repli « Voir aussi » pour les autres livres de l'auteur
+  et les autres langues — c'est ce qui permettrait de tenir le seuil de 3
+  parasites sans rien faire disparaître (modification de l'écran).
+- **Étape 10** (à cadrer) : doublons restants (édition « illustrée » dont le titre
+  contient le nom de l'auteur, intégrale en double, tome lu « 3. »).
+- Puis **nouveau contrôle de clôture** (mêmes 20 recherches, deux passages ; le
+  script arrête la mesure si Open Library retombe).
+Limites connues, non traitées : tomes sans numéro de même titre (mélange possible
+sur une carte), traductions des livres récents (Open Library ne les relie pas),
+roman original *Les Fourmis* absent de la 1re page de Google.
+
 ---
 
 ## 10. Journal des arbitrages — relecture croisée du 2026-08-20
@@ -2613,6 +2689,91 @@ nouvellement écartée**. Réserve : les deux listes viennent de deux lancements
 du banc sur Google, dont les réponses peuvent varier légèrement ; l'identité
 des listes à trois cartes près est néanmoins un bon signe. Le banc reste à
 **0 défaut** sur les 8 recherches.
+
+### Tranche 33 — 2026-09-27 : base de test fixe de 10 livres, produits derives ecartes
+
+> **Origine** : Kinder a signale que la recherche restait mauvaise malgre les
+> tranches 29-32 — plusieurs cartes pour un livre seul, couvertures absentes,
+> tome non affiche sur une saga. Plutot que de corriger a l'aveugle, une base
+> de test **fixe** de 10 livres a ete construite pour mesurer avant de changer
+> quoi que ce soit : 9 classiques a une seule carte attendue + Harry Potter (7
+> tomes attendus). Outil : `client/tests/banc-fixe.js` (`npm run banc:fixe`).
+
+**Mesure initiale : 1 cas sur 10 passe.** Trois causes distinctes identifiees,
+traitees comme trois missions separees :
+
+1. **Le filtre du hors-sujet laissait passer des PRODUITS DERIVES** signes du
+   bon auteur : un DVD, un recueil « Oeuvres completes », une version
+   « racontee a la jeunesse », un texte abrege. Le signal d'auteur seul
+   (`rangAuteur`) les faisait passer — le probleme n'est pas l'auteur, c'est la
+   FORME du produit. **Corrige** : `estHorsFormat` dans `tomes.js` les ecarte
+   avant meme de regarder l'auteur, avec le meme garde-fou fail-open que le
+   reste du filtre. Mesure apres correction : Notre-Dame de Paris passe a
+   1 carte (etait 2, fusionnee avec « Oeuvres completes ») ; Don Quichotte
+   perd 5 fausses cartes sur 14 (DVD et jeunesse ecartes) ; aucune regression
+   sur le banc historique (8 recherches, toujours 0 defaut).
+
+2. **Les vraies traductions/reeditions sans numero ne se regroupent pas**
+   (Don Quichotte, Le Petit Prince, Vingt Mille Lieues sous les mers) —
+   **etudie, delibetement NON corrige**. Question posee a Kinder : pour un
+   livre publie en plusieurs tomes reels (Le Comte de Monte-Cristo), une carte
+   par tome ou une seule carte ? **Reponse : une carte par tome reel, comme
+   une saga** — confirme que le decoupage actuel de Monte-Cristo (tome 1, 3,
+   4, 5 separes) n'est PAS un defaut. Restent des traductions sans numero au
+   titre tres different (« Don Quichotte » / « L'ingenieux hidalgo Don
+   Quichotte de la Manche ») : assouplir la fusion sur le texte du titre pour
+   les regrouper casserait la garantie de la tranche 29 (le roman du
+   « Seigneur des anneaux » et son making-of « Les coulisses du film », meme
+   auteur, ne doivent jamais fusionner — les deux cas sont indiscernables par
+   le seul texte du titre). Une vraie resolution demanderait d'appeler Open
+   Library sur chaque fiche pendant la recherche, contre la regle de quota et
+   de latence du §4.1 (Open Library n'est appele qu'a l'ajout). **Decision de
+   Kinder (2026-09-27) : accepter ces doublons de traduction comme une limite
+   connue**, plutot qu'une regle fragile. Coherent avec le principe deja
+   valide en tranche 29 : mieux vaut une carte en double qu'une fusion fausse.
+
+3. **Harry Potter : aucun numero de tome affiche (0 sur 9)** — **corrige en
+   trois etapes**, chacune invalidee par la mesure precedente :
+   a. Le titre n'ecrit jamais « tome N » (« Harry Potter et la Coupe de
+      Feu ») : rien a lire par motif (§4.4). Premier essai : lire le champ
+      `series` d'Open Library a la recherche, comme §3.2/§4.4 le font deja a
+      l'ajout (`identiteParRecherche`, `enrichirTomesConnus` dans `books.js`,
+      seulement pour un groupe de >= 3 cartes du meme auteur sans numero —
+      §4.6). **Verifie sur de vraies editions Gallimard et Pottermore : le
+      champ `series` est vide.** Open Library ne l'ecrit pas non plus.
+   b. Critere ecrit par Kinder (2026-09-27) : a defaut d'un champ qui l'ECRIT,
+      **deduire** le tome par la date de premiere publication, marquer la
+      carte `tomeDeduit: true`, l'afficher autrement (« tome N (deduit) »),
+      abstenir des qu'une date manque ou que deux dates sont egales. Ecrit
+      dans `tomes.js` (`cleEtNomDeSerie`) et `books.js`
+      (`deduireTomesParDate`). **Premiere mesure : toujours 0 numero.** Cause :
+      `identiteParRecherche` (recherche par TITRE) se trompe d'oeuvre —
+      « Coupe de Feu », « Prisonnier d'Azkaban » et « Chambre des Secrets »
+      resolus vers la MEME oeuvre par la « meilleure correspondance » d'Open
+      Library, donc la MEME annee : le garde-fou (deux memes annees, on
+      n'invente rien) s'active a raison, mais bloque tout.
+   c. **Corrige** : quand Google fournit un ISBN, l'utiliser pour identifier
+      l'oeuvre EXACTE (`identiteParIsbn`, §3.2 « le chemin normal », aucune
+      ambiguite possible), puis relire sa premiere publication par la CLE
+      de cette oeuvre precise (`premierePublicationParOeuvre`, nouvelle
+      fonction d'`openlibrary.js` : `q=key:/works/...`) — jamais par une
+      nouvelle recherche texte, qui reintroduirait la meme confusion.
+      Verifie hors-ligne (reseau simule) sur le cas exact mesure en b : les
+      trois livres auparavant confondus recoivent chacun leur propre numero.
+      **A reverifier sur reseau reel** : le quota Google s'est degrade en
+      fin de session (les reponses ne portent plus le champ auteur), ce qui a
+      empeche la verification finale en conditions reelles.
+
+**Tests** : 5 cas ajoutes a `tests/7-tomes.test.js` (DVD, oeuvres completes,
+jeunesse x2, texte abrege, fail-open) — 316 tests passent au total. La
+deduction par date et la resolution par ISBN sont verifiees hors-ligne
+(reseau simule), pas encore par un test vitest permanent — a ajouter si la
+verification reseau reel confirme le comportement.
+
+**Limite connue ajoutee** : les traductions/reeditions historiques sans numero
+de tome d'un meme classique (Don Quichotte, Le Petit Prince, Vingt Mille
+Lieues sous les mers…) peuvent apparaitre en plusieurs cartes distinctes —
+accepte, voir point 2 ci-dessus.
 
 ---
 

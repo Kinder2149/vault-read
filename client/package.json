@@ -13,7 +13,8 @@
     "test:suivi": "vitest",
     "controle-sources": "node tests/controle-sources.js",
     "controle-catalogue": "vite-node tests/controle-catalogue.js",
-    "banc": "node tests/banc-recherche.js"
+    "banc": "node tests/banc-recherche.js",
+    "banc:fixe": "node tests/banc-fixe.js"
   },
   "dependencies": {
     "@capacitor-community/sqlite": "^8.1.1",

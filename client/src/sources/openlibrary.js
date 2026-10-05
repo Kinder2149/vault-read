@@ -207,7 +207,37 @@ export async function identiteParRecherche(titre, auteur, budgetMs) {
     nbPages: premiereEdition.number_of_pages || null,
     editionOlid: olid(premiereEdition.key),
     couvertureUrl: couvertureParId(doc.cover_i),
+    // Année de la TOUTE PREMIERE publication de l'oeuvre — tranche 33,
+    // chantier 3 bis. A NE PAS confondre avec la date d'edition de Google
+    // Books, qui est souvent celle d'une reimpression : verifie sur Harry
+    // Potter, cinq tomes differents partagent la MEME date de reedition
+    // francaise (« 2015-12-08 »), ce qui rend Google inutilisable pour
+    // deduire un ordre. `first_publish_year` d'Open Library, lui, distingue
+    // vraiment les sept tomes (1997 a 2007).
+    premierePublication: Number.isInteger(doc.first_publish_year) ? doc.first_publish_year : null,
   };
+}
+
+/*
+ * PREMIERE PUBLICATION D'UNE OEUVRE DEJA IDENTIFIEE — tranche 33, chantier 3
+ * ter. `identiteParRecherche` (titre + auteur) se trompe parfois d'oeuvre :
+ * verifie en vrai sur Harry Potter, « Coupe de Feu », « Prisonnier d'Azkaban »
+ * et « Chambre des Secrets » ont ete resolus vers la MEME oeuvre par la
+ * recherche « meilleure correspondance » d'Open Library. Quand l'ISBN
+ * identifie l'oeuvre EXACTE (`identiteParIsbn`), on relit sa premiere
+ * publication PAR CETTE CLE, sans ambiguite possible — `q=key:/works/...`
+ * cible une seule oeuvre, la recherche par texte n'en cible aucune avec
+ * certitude.
+ * @param {string} oeuvreId `ol:OL...W`
+ * @returns {Promise<number|null>}
+ */
+export async function premierePublicationParOeuvre(oeuvreId, budgetMs = DELAI_MAX_MS) {
+  const cle = String(oeuvreId || '').replace(/^ol:/, '');
+  if (!cle) return null;
+  const params = new URLSearchParams({ q: `key:/works/${cle}`, fields: 'first_publish_year', limit: '1' });
+  const donnees = await olGet(`/search.json?${params.toString()}`, budgetMs);
+  const doc = donnees && Array.isArray(donnees.docs) ? donnees.docs[0] : null;
+  return doc && Number.isInteger(doc.first_publish_year) ? doc.first_publish_year : null;
 }
 
 /**

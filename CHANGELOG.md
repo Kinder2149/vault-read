@@ -54,6 +54,54 @@ Pas encore publié : `versionCode` 1, `versionName` « 1.0 ».
   scan d'ISBN par le catalogue (pages, éditeur, couverture de l'édition) ; repli sur les
   sources publiques à la moindre défaillance. 384 vérifications (familles 16 à 19 : auteur et résumés, contrat avec le service, hors ligne, attribution).
 
+- **2026-10-04** — Mission « recherche satisfaisante » figée (aucun code touché) :
+  mesure de 20 recherches (3 satisfaisantes), six décisions en §9. Plan à faire.
+
+- **2026-10-04** — Mission « recherche satisfaisante », étape 1 (validée par Kinder
+  le 2026-10-04) : un « 0 résultat » de Google vaut une panne, chaîne de repli
+  Google libre → BnF → « Aucun livre trouvé ». 324 vérifications passent.
+- **2026-10-04** — Mission « recherche satisfaisante », étape 2 (validée par Kinder
+  le 2026-10-04) : le filtre ne perd plus de vrais livres (rôle entre
+  parenthèses ignoré, prénoms composés, titre exact sans sous-titre conservé).
+  332 vérifications passent.
+- **2026-10-04** — Mission « recherche satisfaisante », étape 3 (validée par Kinder
+  le 2026-10-04) : la recherche de titre est complétée par l'auteur (3
+  auteurs au plus, via Open Library), archivée avec le reste. 345 vérifications
+  passent.
+- **2026-10-04** — Mission « recherche satisfaisante », étape 4 (validée par Kinder
+  le 2026-10-04) : une seule définition de « même livre » pour la fusion et
+  la complétion BnF (auteur lu avec tolérance, même tome, titres compatibles).
+  364 vérifications passent. Limite connue reportée à l'étape 5 : deux tomes sans
+  numéro de même titre peuvent encore partager une carte.
+
+- **2026-10-04** — Mission « recherche satisfaisante », étape 5 (validée par Kinder
+  le 2026-10-04) : les traductions qu'Open Library rattache à la même œuvre
+  fusionnent (12 ISBN au plus, 3,5 s au plus, réponses mémorisées), édition
+  française en vitrine. Résultat partiel : Open Library ne connaît presque rien
+  des livres récents. 380 vérifications passent.
+
+- **2026-10-04** — Mission « recherche satisfaisante », étape 6 (validée par Kinder
+  le 2026-10-04) : le livre cherché passe avant les parasites (trois niveaux :
+  cherché, même auteur, reste), rien ne disparaît. 391 vérifications passent.
+
+- **2026-10-04** — Contrôle de clôture (étape 7) : 3 recherches satisfaisantes sur 20,
+  écrans vides 6 → 0, vrais livres perdus 9 → 1, mais plus de bruit et de doublons.
+  Open Library tombée deux fois (290 requêtes en 4 min). Mission non close.
+- **2026-10-04** — Mission « recherche satisfaisante », étape 8 (validée par Kinder sur les
+  vérifications automatiques ; mesure réelle en attente : Open Library ne répond plus) : budget de 10 requêtes Open Library
+  par recherche, calcul des tomes limité au livre cherché, livre de référence choisi
+  par l'auteur que désigne Open Library. 404 vérifications passent.
+
+- **2026-10-04** — Mission « recherche satisfaisante », étape 9 (en attente des captures
+  de Kinder) : repli « Voir aussi » — le livre cherché reste visible avec trois « autres »
+  au plus, les autres livres de l'auteur et les éditions en d'autres langues passent
+  sous un repli, rien ne disparaît. 415 vérifications passent.
+
+- **2026-10-04** — Mission « recherche satisfaisante », étape 10 (validée par Kinder
+  le 2026-10-04) : doublons restants — nom de l'auteur dans le titre, genre après le
+  deux-points, « texte intégral », faute de frappe sur un tome, intégrale en sous-titre,
+  titre coupé. 433 vérifications passent. À mesurer au contrôle final.
+
 ## À venir
 
 Voir `PROJET_CONTEXTE.md` §11 (publication) — rien n'est cadré au-delà.

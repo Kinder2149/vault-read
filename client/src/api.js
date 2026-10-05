@@ -116,7 +116,10 @@ export async function fusionnerResultats(liste, texte) {
   // Fusion PUIS retrait de ce qui n'est pas l'oeuvre (mission « le bruit
   // d'abord ») : la meme sortie d'affichage que la recherche initiale, pour
   // qu'une carte hors-sujet le reste quand les pages s'accumulent.
-  return books.fusionnerDoublonsAffichage(liste, texte);
+  const cartes = books.fusionnerDoublonsAffichage(liste, texte);
+  // Meme rattrapage du tome (tranche 33) que la recherche initiale : sinon
+  // les cartes des pages suivantes perdraient leur numero en cours de route.
+  return books.enrichirTomesConnus(cartes);
 }
 
 /*

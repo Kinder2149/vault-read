@@ -235,6 +235,21 @@ export function rechercherParAuteur(texte, page = 0) {
   return chercher(`inauthor:"${texte}"`, { langRestrict: 'fr' }, page);
 }
 
+/*
+ * Recherche LIBRE : le texte tape, tel quel, sans operateur.
+ *
+ * Elle n'existe que pour le repli d'une recherche qui revient VIDE. Mesure du
+ * 2026-10-04 : Google a rendu « 0 resultat » (code 200, sans erreur) pour tous
+ * les `inauthor:` et `isbn:` et pour certains `intitle:` (germinal, 1984,
+ * l'anomalie, l'elegance du herisson), alors que la meme question posee librement
+ * rendait 20 volumes. Elle est plus bruyante que `intitle:` : le filtre du
+ * hors-sujet la traite comme toute autre reponse.
+ */
+export function rechercherLibre(texte, auteur = '') {
+  const requete = [texte, auteur].map((t) => String(t || '').trim()).filter(Boolean).join(' ');
+  return chercher(requete, { langRestrict: 'fr' });
+}
+
 /** Découverte par sujet — sert aux suggestions (§4.6). */
 export function rechercherParSujet(sujet) {
   return chercher(`subject:"${sujet}"`, { langRestrict: 'fr' });
