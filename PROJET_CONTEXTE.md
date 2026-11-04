@@ -1,5 +1,19 @@
 # PROJET_CONTEXTE — « Vault Read »
 
+## STATUT — fait foi pour les statuts (lu par Pilotage)
+
+```
+STATUT DU PROJET : En développement
+MISSION : Construction (tranches 0 à 8) — Close
+MISSION : Corrections d'usage (tranches 9 à 32) — ?
+MISSION : Branchement au service de catalogue (branche feature/catalogue-api) — En attente de ma capture
+IDÉES PARQUÉES :
+  - Publication Play Store (clé de signature, version, page de confidentialité)
+  - Scan d'un vrai code-barres à vérifier sur téléphone
+  - Historique des lectures antérieures
+```
+*(Bloc ajouté le 2026-10-30, validé par Kinder.)*
+
 > Document de référence du projet. Il fixe les décisions ; il ne décrit pas du
 > code qui n'existe pas encore, et il est tenu à jour quand une décision se
 > révèle fausse à l'usage.
