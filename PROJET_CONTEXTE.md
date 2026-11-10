@@ -5,8 +5,8 @@
 ```
 STATUT DU PROJET : En développement
 MISSION : Construction (tranches 0 à 8) — Close
-MISSION : Corrections d'usage (tranches 9 à 32) — ?
-MISSION : Branchement au service de catalogue (branche feature/catalogue-api) — En attente de ma capture
+MISSION : Corrections d'usage (tranches 9 à 32) — Close
+MISSION : Branchement au service de catalogue (travail de la branche feature/catalogue-api, déjà fusionné dans main) — En implémentation
 IDÉES PARQUÉES :
   - Publication Play Store (clé de signature, version, page de confidentialité)
   - Scan d'un vrai code-barres à vérifier sur téléphone

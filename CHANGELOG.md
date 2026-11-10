@@ -108,3 +108,7 @@ Voir `PROJET_CONTEXTE.md` §11 (publication) — rien n'est cadré au-delà.
 
 - 2026-10-05 : le test « ARCHIVE DU BRUT » (famille 3) attend désormais l'archive au lieu d'un seul tour de boucle : il échouait par moments en suite complète (écriture non attendue, import dynamique). 384 vérifications.
 
+## Consolidation, temps 2 (2026-11)
+
+- **2026-11-05** — Branchement au service de catalogue : « En attente de ma capture » → « En implémentation », renvoyée au temps 3. Vérification par une autre IA échouée sur un point : un livre déjà suivi n'est pas reconnu en recherche par ISBN (le bouton « Suivre » reste affiché). Réussis : catalogue interrogé avant les sources publiques, saga en bloc, éditions, ISBN vers le catalogue, repli sur les sources publiques ; 506 vérifications automatiques passent. Aucun critère de fin écrit par Kinder.
+- **2026-11-10** — Tri des projets (lot 4) : « Corrections d'usage (tranches 9 à 32) » passée de « ? » à Close (toutes les tranches sont écrites et vérifiées, §12) ; « Branchement au service de catalogue » reste la seule mission active. Le travail de la branche `feature/catalogue-api` est déjà dans `main` (fusion 4dbfe6b). 4 .md de documentation.
