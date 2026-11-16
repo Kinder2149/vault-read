@@ -41,3 +41,6 @@ graphify-out/
 # Doublon de configuration de poste : le lancement de reference est
 # .claude/launch.json, a la racine.
 client/.claude/
+
+# Fichier de publication Play Store, reconstruit à chaque publication
+*.aab
