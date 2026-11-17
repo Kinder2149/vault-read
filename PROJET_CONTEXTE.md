@@ -11,6 +11,7 @@ IDÉES PARQUÉES :
   - Publication Play Store (clé de signature, version, page de confidentialité)
   - Scan d'un vrai code-barres à vérifier sur téléphone
   - Historique des lectures antérieures
+  - Branche `archive/vault-read-sagas-2026-09` (en ligne, 9 enregistrements du 26/09 jamais fusionnés : regroupement des résultats par saga, numéros de tome, intégrales rattachées, APK de test automatique) : à relire à la prochaine mission pour reprendre ce qui sert encore
 ```
 *(Bloc ajouté le 2026-10-30, validé par Kinder.)*
 
